@@ -1,0 +1,9 @@
+target/
+*~
+.DS_Store
+.cache
+
+# For Eclipse
+.project
+.classpath
+.settings/
