@@ -26,14 +26,35 @@ How to run (for Mac)
 
     % brew update && brew install sbt
     % export SBT_OPTS="-XX:+CMSClassUnloadingEnabled -XX:MaxPermSize=256M"
+    % sbt run
+    "Hello World!"
+
+Other sbt commands:
+
+    # Enter sbt's interactive console.
     % sbt
+
+    > compile
+    ...
+    [success] ...
     > run
     "Hello World!"
     > run-main icfpc2013.kirakira.HelloJava
     "Hello World! Java!"
     > test
     ...
-    [success]
+    [success] ...
+    > pack
+    [info] packaging ...
+    ...
+    [success] ...
+    > exit
+
+    % ./target/pack/bin/hello
+    "Hello World!"
+
+    % ./target/pack/bin/hellojava
+    "Hello World! Java!"
 
 
 How to develop using Eclipse (if you love Eclipse)
@@ -44,5 +65,5 @@ How to develop using Eclipse (if you love Eclipse)
 
   % sbt eclipse
 
-  Make sure that `.project`, `.classpath` and `.settings/` are generataed, which are used by Eclipse.
+  Make sure that `.project`, `.classpath` and `.settings/` are generated, which are used by Eclipse.
 - Import the workspace (this top directory) from Eclipse.
