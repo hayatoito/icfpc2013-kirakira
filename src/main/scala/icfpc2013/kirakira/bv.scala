@@ -2,44 +2,39 @@ package icfpc2013.kirakira
 
 import scala.util.parsing.combinator._
 import scala.collection.mutable
-import java.net.URL
-import sun.net.httpserver.HttpConnection
-import java.net.HttpURLConnection
-import java.io.DataOutputStream
-import java.io.BufferedReader
-import java.io.InputStreamReader
 
 object bv {
 
-  case class Func(id: String, e: Expression)
+  // Todo: Implements lambda.
+  case class Program(parameterName: String, e: Expression)
   case class Environment(parent: Environment) {
     val table = mutable.Map.empty[String, Int]
   }
 
-  //  def applyToFunc(parentEnv: Environment, f: Func, x: Int): Int = {
-  //    val env = Environment(parentEnv)
-  //  }
+  sealed trait Op1Symbol
+  case object Not extends Op1Symbol
+  case object Shl1 extends Op1Symbol
+  case object Shr1 extends Op1Symbol
+  case object Shr4 extends Op1Symbol
+  case object Shr16 extends Op1Symbol
 
-  sealed trait OpCode1
-  case object Not extends OpCode1
-  case object Shl1 extends OpCode1
-  case object Shr1 extends OpCode1
-  case object Shr4 extends OpCode1
-  case object Shr16 extends OpCode1
+  def operations1 = List(Not, Shl1, Shr1, Shr4, Shr16)
 
-  sealed trait OpCode2
-  case object And extends OpCode2
-  case object Or extends OpCode2
-  case object Xor extends OpCode2
-  case object Plus extends OpCode2
+  sealed trait Op2Symbol
+  case object And extends Op2Symbol
+  case object Or extends Op2Symbol
+  case object Xor extends Op2Symbol
+  case object Plus extends Op2Symbol
+
+  def operations2 = List(And, Or, Xor, Plus)
 
   sealed trait Expression
 
   case class Constant(n: Int) extends Expression // 0, 1, 2
   // case class ID(x: String) extends Expression
   case class If(e0: Expression, e1: Expression, e2: Expression) extends Expression
-  case class Op1(op: OpCode1, e: Expression) extends Expression
-  case class Op2(op: OpCode2, e1: Expression, e2: Expression) extends Expression
+  case class Op1(op: Op1Symbol, e: Expression) extends Expression
+  case class Op2(op: Op2Symbol, e1: Expression, e2: Expression) extends Expression
 
   val ONE = Constant(1)
   val ZERO = Constant(0)
@@ -75,17 +70,17 @@ object bv {
   def stringify(e: Expression): String = e match {
     case Constant(n) => n.toString
 
-    case Op1(Not, e) => "(not " + stringify(e) + ")"
-    case Op1(Shl1, e) => "(shl1 " + stringify(e) + ")"
-    case Op1(Shr1, e) => "(shr1 " + stringify(e) + ")"
-    case Op1(Shr4, e) => "(shr4 " + stringify(e) + ")"
-    case Op1(Shr16, e) => "(shr16 " + stringify(e) + ")"
+    case Op1(Not, e) => s"(not ${stringify(e)})"
+    case Op1(Shl1, e) => s"(shl1 ${stringify(e)})"
+    case Op1(Shr1, e) => s"(shr1 ${stringify(e)})"
+    case Op1(Shr4, e) => s"(shr4 ${stringify(e)})"
+    case Op1(Shr16, e) => s"(shr16 ${stringify(e)})"
 
-    case Op2(Xor, e1, e2) => "(xor " + stringify(e1) + " " + stringify(e2) + ")"
-    case Op2(Plus, e1, e2) => "(plus " + stringify(e1) + " " + stringify(e2) + ")"
-    case Op2(And, e1, e2) => "(and " + stringify(e1) + " " + stringify(e2) + ")"
-    case Op2(Or, e1, e2) => "(or " + stringify(e1) + " " + stringify(e2) + ")"
-    case If(e0, e1, e2) => "(if " + stringify(e0) + " " + stringify(e1) + " " + stringify(e2) + ")"
+    case Op2(Xor, e1, e2) => s"(xor ${stringify(e1)} ${stringify(e2)})"
+    case Op2(Plus, e1, e2) => s"(plus ${stringify(e1)} ${stringify(e2)})"
+    case Op2(And, e1, e2) => s"(and ${stringify(e1)} ${stringify(e2)})"
+    case Op2(Or, e1, e2) => s"(or ${stringify(e1)} ${stringify(e2)})"
+    case If(e0, e1, e2) => s"(if ${stringify(e0)} ${stringify(e1)} ${stringify(e2)})"
   }
 
   def size(e: Expression): Int = e match {
@@ -97,16 +92,33 @@ object bv {
 
   case class InputOutput(input: Int, output: Int)
 
+  def constants = List(ZERO, ONE)
+
   def matchInput(e: Expression, example: InputOutput): Boolean = (eval(e) == example.output)
 
-  //  def solve(size: Int, examples: Seq[InputOutput]): Expression = {
-  //    for {
-  //      e <- generate(size)
-  //    } {
-  //      examples.
-  //    }
-  //
-  //  }
+  def generateOp1(op1Symbol: Op1Symbol): Seq[Expression] = Nil
+
+  case class Operations(op1s: List[Op1Symbol], op2s: List[Op2Symbol])
+  
+  val allOperations = Operations(operations1, operations2)
+
+  def generateExpressions(size: Int, operations: Operations): Seq[Expression] = {
+    if (size == 1) constants
+    else {
+      (for {
+        e1Size <- 1 to size - 1
+        op1 <- operations.op1s
+        e1 <- generateExpressions(e1Size, operations)
+      } yield Op1(op1, e1)) ++
+        (for {
+          e1Size <- 1 to size - 2
+          e2Size = size - 1 - e1Size
+          op2 <- operations.op2s
+          e1 <- generateExpressions(e1Size, operations)
+          e2 <- generateExpressions(e2Size, operations)
+        } yield Op2(op2, e1, e2))
+    }
+  }
 }
 
 object bvmain extends App {
@@ -115,6 +127,8 @@ object bvmain extends App {
   //  println(eval(Op2(And, ZERO, ONE)))
 
   println(eval(Op1(Shr4, Op2(Plus, ONE, ONE))))
+
+  generateExpressions(5, allOperations) map stringify foreach println
 
   // println(eval(Op2(Plus, ZERO, Op2(Plus, ONE, ONE))))
   // println(Op2(And, ZERO, ONE))

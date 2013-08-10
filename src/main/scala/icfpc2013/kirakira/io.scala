@@ -13,12 +13,9 @@ object io {
 
   val token = "0037R3ngJEM1MscklcXGMmH06VGq634dDm3rKQ4IvpsH1H"
 
-  //  def serverURL = "http://icfpc2013.cloudapp.net/train"
   def serverURL = "http://icfpc2013.cloudapp.net/"
   def requestURL(requestType: String): String = serverURL + requestType + "?auth=" + token
-
   // http://icfpc2013.cloudapp.net/myproblems?auth=0037R3ngJEM1MscklcXGMmH06VGq634dDm3rKQ4IvpsH1H
-
   def post(url: String, data: String): Any = {
     println(s"url: ${url}, data: ${data}")
     val response = Http.postData(url, data).option(HttpOptions.connTimeout(10000)).option(HttpOptions.readTimeout(50000)).asString
@@ -26,14 +23,12 @@ object io {
     JSON.parseFull(response).get
   }
 
-  case class ProgramInfo(id: String, size: Int, operators: Set[String], solved: Boolean, 
-      timeLeft: Option[Double]) extends Ordered[ProgramInfo] {
+  case class ProgramInfo(id: String, size: Int, operators: Set[String], solved: Boolean,
+    timeLeft: Option[Double]) extends Ordered[ProgramInfo] {
     override def compare(that: ProgramInfo): Int = size - that.size
   }
 
-
   def asInt(m: Map[String, Any], key: String): Int = m(key).asInstanceOf[Double].toInt
-
   def asDouble(m: Map[String, Any], key: String): Double = m(key).asInstanceOf[Double]
   def asOptionDouble(m: Map[String, Any], key: String): Option[Double] = m.get(key) match {
     case Some(x) => Some(x.asInstanceOf[Double])
@@ -73,10 +68,8 @@ object io {
   case class GuessRequest(id: String, program: String) {
     def toJSON: String = JSONObject(Map("id" -> id, "program" -> program)).toString
   }
-  // case class GuessResponse(status: String, values: List[String], message: String, lightning: Boolean)
   case class GuessResponse(status: String, input: String = "", answer: String = "",
-    actual: String = "",
-    message: String = "", lightning: Boolean)
+    actual: String = "", message: String = "", lightning: Boolean)
 
   def guess(guessRequest: GuessRequest): GuessResponse = {
     val response = post(requestURL("guess"), guessRequest.toJSON).asInstanceOf[Map[String, Any]]
@@ -84,8 +77,7 @@ object io {
       GuessResponse(status = "win", lightning = asBoolean(response, "lightning"))
     } else if (response("status") == "mismatch") {
       val values = asList(response, "values")
-      GuessResponse(status = "mismatch", input = values(0), answer = values(1), actual = values(2),
-        lightning = asBoolean(response, "lightning"))
+      GuessResponse(status = "mismatch", input = values(0), answer = values(1), actual = values(2), lightning = asBoolean(response, "lightning"))
     } else {
       GuessResponse(status = "error", message = asString(response, "message"), lightning = asBoolean(response, "lightning"))
     }
@@ -99,13 +91,13 @@ object iomain extends App {
 
   // Program(zWqJMDA99HvjBA1VEvQg5Zbc,3,Set(shr16),false,None)
 
-//    val evalResponse = io.eval(io.EvalRequest(None, Some("(lambda (x) (shr1 (plus (plus 1 1) (plus 1 1))))"), 
-//        List("0x01", "0x02", "0x03", "0x04")))
-//   println(evalResponse)
-  
-//    val evalResponse = io.eval(io.EvalRequest(Some("zWqJMDA99HvjBA1VEvQg5Zbc"), None, 
-//        List("0x01", "0x02", "0x03", "0x04")))
-//   println(evalResponse)
+  //    val evalResponse = io.eval(io.EvalRequest(None, Some("(lambda (x) (shr1 (plus (plus 1 1) (plus 1 1))))"), 
+  //        List("0x01", "0x02", "0x03", "0x04")))
+  //   println(evalResponse)
+
+  //    val evalResponse = io.eval(io.EvalRequest(Some("zWqJMDA99HvjBA1VEvQg5Zbc"), None, 
+  //        List("0x01", "0x02", "0x03", "0x04")))
+  //   println(evalResponse)
 
   // val guess = io.guess(io.GuessRequest("zWqJMDA99HvjBA1VEvQg5Zbc", "(lambda (x) (shr16 x))"))
   // val guess = io.guess(io.GuessRequest("zWqJMDA99HvjBA1VEvQg5Zbc", "(lambda (x) (shr16 0))"))
