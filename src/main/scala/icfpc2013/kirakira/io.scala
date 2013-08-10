@@ -6,11 +6,10 @@ import scala.util.parsing.json.JSON
 import scala.util.parsing.json.JSONObject
 import scala.util.parsing.json.JSONArray
 import scala.util.parsing.json.JSONArray
+import scala.util.parsing.json.JSONObject
 
 object io {
-
   case class BVIOException() extends Exception
-
   val token = "0037R3ngJEM1MscklcXGMmH06VGq634dDm3rKQ4IvpsH1H"
 
   def serverURL = "http://icfpc2013.cloudapp.net/"
@@ -23,11 +22,6 @@ object io {
     JSON.parseFull(response).get
   }
 
-  case class ProgramInfo(id: String, size: Int, operators: Set[String], solved: Boolean,
-    timeLeft: Option[Double]) extends Ordered[ProgramInfo] {
-    override def compare(that: ProgramInfo): Int = size - that.size
-  }
-
   def asInt(m: Map[String, Any], key: String): Int = m(key).asInstanceOf[Double].toInt
   def asDouble(m: Map[String, Any], key: String): Double = m(key).asInstanceOf[Double]
   def asOptionDouble(m: Map[String, Any], key: String): Option[Double] = m.get(key) match {
@@ -35,61 +29,73 @@ object io {
     case None => None
   }
   def asString(m: Map[String, Any], key: String): String = m(key).toString
-  def asSet(m: Map[String, Any], key: String): Set[String] = m(key).asInstanceOf[List[String]].toSet
   def asBoolean(m: Map[String, Any], key: String): Boolean = m.getOrElse(key, false).asInstanceOf[Boolean]
-  def asList(m: Map[String, Any], key: String): List[String] = m(key).asInstanceOf[List[String]]
+  def asListString(m: Map[String, Any], key: String): List[String] = m(key).asInstanceOf[List[String]]
 
+  case class ProgramInfo(id: String, size: Int, operators: List[String], solved: Boolean,
+    timeLeft: Option[Double]) extends Ordered[ProgramInfo] {
+    override def compare(that: ProgramInfo): Int = size - that.size
+  }
+  
   def myproblems(): Seq[ProgramInfo] = {
     val problems = post(requestURL("myproblems"), "").asInstanceOf[List[Map[String, Any]]]
     problems map { p =>
-      ProgramInfo(asString(p, "id"), asInt(p, "size"), asSet(p, "operators"),
+      ProgramInfo(asString(p, "id"), asInt(p, "size"), asListString(p, "operators"),
         asBoolean(p, "solved"), asOptionDouble(p, "timeLeft"))
     }
   }
 
-  case class EvalRequest(id: Option[String], program: Option[String], arguments: List[String]) {
-    def toJSON: String = id match {
+  case class EvalResponse(outputs: Seq[String])
+
+  def eval(id: Option[String], program: Option[String], arguments: List[String]): EvalResponse = {
+    val json: String = id match {
       case Some(id) => JSONObject(Map("id" -> id, "arguments" -> JSONArray(arguments))).toString
       case None => JSONObject(Map("program" -> program.get, "arguments" -> JSONArray(arguments))).toString
     }
-  }
-  case class EvalResponse(outputs: Seq[String])
-
-  def eval(evalRequest: EvalRequest): EvalResponse = {
-    val response = post(requestURL("eval"), evalRequest.toJSON).asInstanceOf[Map[String, Any]]
+    val response = post(requestURL("eval"), json).asInstanceOf[Map[String, Any]]
     if (response("status") == "ok")
-      EvalResponse(asList(response, "outputs"))
+      EvalResponse(asListString(response, "outputs"))
     else {
       println("error: " + response("message"))
       throw BVIOException()
     }
   }
 
-  case class GuessRequest(id: String, program: String) {
-    def toJSON: String = JSONObject(Map("id" -> id, "program" -> program)).toString
-  }
   case class GuessResponse(status: String, input: String = "", answer: String = "",
     actual: String = "", message: String = "", lightning: Boolean)
 
-  def guess(guessRequest: GuessRequest): GuessResponse = {
-    val response = post(requestURL("guess"), guessRequest.toJSON).asInstanceOf[Map[String, Any]]
+  def guess(id: String, program: String): GuessResponse = {
+    val json: String = JSONObject(Map("id" -> id, "program" -> program)).toString
+    val response = post(requestURL("guess"), json).asInstanceOf[Map[String, Any]]
     if (response("status") == "win") {
       GuessResponse(status = "win", lightning = asBoolean(response, "lightning"))
     } else if (response("status") == "mismatch") {
-      val values = asList(response, "values")
-      GuessResponse(status = "mismatch", input = values(0), answer = values(1), actual = values(2), lightning = asBoolean(response, "lightning"))
+      val values = asListString(response, "values")
+      GuessResponse(status="mismatch", input=values(0), answer=values(1), actual=values(2), lightning=asBoolean(response, "lightning"))
     } else {
-      GuessResponse(status = "error", message = asString(response, "message"), lightning = asBoolean(response, "lightning"))
+      GuessResponse(status="error", message=asString(response, "message"), lightning=asBoolean(response, "lightning"))
     }
   }
+
+  case class TrainResponse(challenge: String, id: String, size: Int, operators: List[String])
+  def train(size: Int, operators: List[String] = Nil): TrainResponse = {
+    val json: String = JSONObject(Map("size" -> size, "operators" -> JSONArray(operators))).toString
+    val response = post(requestURL("train"), json).asInstanceOf[Map[String, Any]]
+    TrainResponse(challenge=asString(response, "challenge"), id=asString(response, "id"),
+        size=asInt(response, "size"), operators=asListString(response, "operators"))
+  }
+
 }
 
 object iomain extends App {
-  val problems = io.myproblems()
-  println(problems)
-  problems.sorted foreach println
+  import io._
+//  val problems = io.myproblems()
+//  println(problems)
+//  problems.sorted foreach println
 
   // Program(zWqJMDA99HvjBA1VEvQg5Zbc,3,Set(shr16),false,None)
+  
+  println(train(size=3))
 
   //    val evalResponse = io.eval(io.EvalRequest(None, Some("(lambda (x) (shr1 (plus (plus 1 1) (plus 1 1))))"), 
   //        List("0x01", "0x02", "0x03", "0x04")))
