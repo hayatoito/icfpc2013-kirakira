@@ -72,7 +72,7 @@ object io {
   }
 
   case class GuessResponse(status: String, input: String = "", answer: String = "",
-    actual: String = "", message: String = "", lightning: Boolean)
+    myAnswer: String = "", message: String = "", lightning: Boolean)
 
   def guess(id: String, program: String): GuessResponse = {
     val json: String = JSONObject(Map("id" -> id, "program" -> program)).toString
@@ -81,7 +81,7 @@ object io {
       GuessResponse(status = "win", lightning = asBoolean(response, "lightning"))
     } else if (response("status") == "mismatch") {
       val values = asListString(response, "values")
-      GuessResponse(status = "mismatch", input = values(0), answer = values(1), actual = values(2), lightning = asBoolean(response, "lightning"))
+      GuessResponse(status = "mismatch", input = values(0), answer = values(1), myAnswer = values(2), lightning = asBoolean(response, "lightning"))
     } else {
       GuessResponse(status = "error", message = asString(response, "message"), lightning = asBoolean(response, "lightning"))
     }

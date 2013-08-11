@@ -243,15 +243,17 @@ object bv {
 
       correctPrograms foreach (x => println(stringify(x)))
 
-      def tryGuess(ps: List[Expression]): Unit = ps match {
+      def tryGuess(ps: List[Lambda]): Unit = ps match {
         case e :: es => {
           sleep()
           val guessResponse = io.guess(problem.id, stringify(e)) // "(lamdba (x) (plus x 1)
           println(guessResponse)
           if (guessResponse.status == "mismatch") {
-            println("remaining: " + ps.size)
-            tryGuess(es.filter(e =>
-              applyFunction(Lambda("x", e), guessResponse.input.asLong) == guessResponse.answer))
+            println("filter: before " + es.size)
+            val filtered = es.filter(e =>
+              applyFunction(e, guessResponse.input.asLong) == guessResponse.answer.asLong)
+            println("filter: before " + filtered.size)
+            tryGuess(filtered)
           } else if (guessResponse.status == "error") throw BVError()
         }
         case Nil => throw BVError()
