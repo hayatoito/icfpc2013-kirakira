@@ -2,6 +2,7 @@ package icfpc2013.kirakira
 
 import scala.collection.mutable
 import scala.util.parsing.combinator.JavaTokenParsers
+import java.math.BigInteger
 
 object bv {
 
@@ -12,7 +13,7 @@ object bv {
   implicit class RichString(val s: String) extends AnyVal {
     def asLong: Long = {
       assert(s.take(2) == "0x")
-      java.lang.Long.parseLong(s.drop(2), 16)
+      new BigInteger(s.drop(2), 16).longValue()
     }
   }
 
@@ -97,7 +98,7 @@ object bv {
     lazy val id = ident ^^ { case x => Id(x) }
     lazy val op1 = "(" ~ ident ~ expr ~ ")" ^^ { case "(" ~ v ~ e ~ ")" => Op1(toOp1(v), e) }
     lazy val op2 = "(" ~ ident ~ expr ~ expr ~ ")" ^^ { case "(" ~ v ~ e1 ~ e2 ~ ")" => Op2(toOp2(v), e1, e2) }
-    lazy val if0 = "(" ~ "if" ~ expr ~ expr ~ expr ^^ { case "(" ~ "if" ~ e0 ~ e1 ~ e2 => If(e0, e1, e2) }
+    lazy val if0 = "(" ~ "if0" ~ expr ~ expr ~ expr ~ ")" ^^ { case "(" ~ "if0" ~ e0 ~ e1 ~ e2 ~ ")" => If(e0, e1, e2) }
     lazy val fold = "(" ~ "fold" ~ expr ~ expr ~ "(" ~ "lambda" ~ "(" ~ ident ~ ident ~ ")" ~ expr ~ ")" ~ ")" ^^
       { case "(" ~ "fold" ~ e0 ~ e1 ~ "(" ~ "lambda" ~ "(" ~ x ~ y ~ ")" ~ e2 ~ ")" ~ ")" => Fold(e0, e1, x, y, e2) }
     lazy val lambda = "(" ~ "lambda" ~ "(" ~ ident ~ ")" ~ expr ~ ")" ^^
@@ -150,7 +151,7 @@ object bv {
     case Op1(op1, e) => s"(${op1.value} ${stringify(e)})"
     case Op2(op2, e1, e2) => s"(${op2.value} ${stringify(e1)} ${stringify(e2)})"
     case Id(x) => x
-    case If(e0, e1, e2) => s"(if ${stringify(e0)} ${stringify(e1)} ${stringify(e2)})"
+    case If(e0, e1, e2) => s"(if0 ${stringify(e0)} ${stringify(e1)} ${stringify(e2)})"
     case Fold(e0, e1, x, y, e) => s"(fold ${stringify(e0)} ${stringify(e1)} (lambda (${x} ${y}) ${stringify(e)}))"
     case Lambda(x, e) => s"(lambda (${x}) ${stringify(e)})"
   }
@@ -184,42 +185,107 @@ object bv {
           op2 <- operators.op2s
           e1 <- generateExpressions(size1, operators, usedIds)
           e2 <- generateExpressions(size2, operators, usedIds)
-        } yield Op2(op2, e1, e2))
+        } yield Op2(op2, e1, e2)) ++
+        (for {
+          size1 <- 1 to (size - 3)
+          size2 <- 1 to (size - 2 - size1)
+          size3 = size - 1 - size1 - size2
+          e1 <- generateExpressions(size1, operators, usedIds)
+          e2 <- generateExpressions(size2, operators, usedIds)
+          e3 <- generateExpressions(size3, operators, usedIds)
+        } yield If(e1, e2, e3)) ++
+        (for {
+          size1 <- 1 to (size - 3)
+          size2 <- 1 to (size - 2 - size1)
+          size3 = size - 1 - size1 - size2
+          id1 = "x" + usedIds.size
+          id2 = "x" + (usedIds.size + 1)
+          e1 <- generateExpressions(size1, operators, usedIds)
+          e2 <- generateExpressions(size2, operators, usedIds)
+          e3 <- generateExpressions(size3, operators, usedIds ++ Set(id1, id2))
+        } yield Fold(e1, e2, id1, id2, e3))
+
     }
   }
 
   case class InputOutput(input: Long, output: Long)
+
   def matchInput(e: Expression, example: InputOutput): Boolean = (eval(e) == example.output)
+
+  def sleep(): Unit = { Thread.sleep(5000) }
+
+  def tachikoma(): Unit = {
+    val problems = io.myproblems.filterNot(p => p.solved).sorted
+    for {
+      problem <- problems.take(10)
+    } {
+      val inputs = (-128L until 128L)
+      sleep()
+      val outputs = io.eval(Some(problem.id), None, inputs.map(n => n.toHex).toList).
+        outputs.map(x => x.asLong)
+
+      val expressions = generateExpressions(problem.size - 1, io.convert(problem.operators), Set("x"))
+      val inputOutputs = inputs.zip(outputs) map (x => InputOutput(x._1, x._2))
+      val correctPrograms =
+        for {
+          e <- expressions
+          program = Lambda("x", e)
+          if inputOutputs.forall { case InputOutput(input, output) => applyFunction(program, input) == output }
+        } yield program
+
+      correctPrograms foreach (x => println(stringify(x)))
+
+      def tryGuess(ps: List[Expression]): Unit = ps match {
+        case x :: xs => {
+          sleep()
+          val guessResponse = io.guess(problem.id, stringify(x)) // "(lamdba (x) (plus x 1)
+          println(guessResponse)
+          if (guessResponse.status == "mismatch") tryGuess(xs)
+        }
+        case Nil => Unit
+      }
+      tryGuess(correctPrograms.toList)
+    }
+  }
 
   def solveTrain(size: Int): Unit = {
     val trainResponse = io.train(size = size)
 
+    val inputs = (-128L until 128L)
+    val outputs = io.eval(Some(trainResponse.id), None, inputs.map(n => n.toHex).toList).
+      outputs.map(x => x.asLong)
+
     val expressions = generateExpressions(size - 1, trainResponse.operators, Set("x"))
-    val inputs = 0 until 10
-    for {
-      e <- expressions
-      x <- inputs
-    } {
-      val program = Lambda("x", e)
-      println(s"f(x) = ${stringify(program)}, f(${x}) -> ${applyFunction(program, x)}")
-    }
+    val inputOutputs = inputs.zip(outputs) map (x => InputOutput(x._1, x._2))
+    val correctPrograms =
+      for {
+        e <- expressions
+        program = Lambda("x", e)
+        if inputOutputs.forall { case InputOutput(input, output) => applyFunction(program, input) == output }
+      } yield program
 
+    correctPrograms foreach (x => println(stringify(x)))
+    println(io.guess(trainResponse.id, stringify(correctPrograms.head)))
   }
-
 }
 
 object BVMain extends App {
-  import bv._
-  // generateExpressions(4, allOperators) map stringify foreach println
 
-  for {
-    e <- generateExpressions(size = 3, allOperators, Set("x"))
-    x <- 0 until 4
-  } {
-    val program = Lambda("x", e)
-    val out = applyFunction(program, x)
-    println(s"f(x) = ${stringify(program)}, f(${x}) -> ${out} (${out.toHex})")
-  }
+  import bv._
+  // println(parse("(lambda (x) (and x (if0 (and 1 x) 0 x)))"))
+
+  tachikoma()
+  // generateExpressions(4, allOperators) map stringify foreach println
+  // solveTrain(size = 5)
+
+  //  for {
+  //    e <- generateExpressions(size = 3, allOperators, Set("x"))
+  //    x <- 0 until 4
+  //  } {
+  //    val program = Lambda("x", e)
+  //    val out = applyFunction(program, x)
+  //    println(s"f(x) = ${stringify(program)}, f(${x}) -> ${out} (${out.toHex})")
+  //  }
 
   // solveTrain(size=4)
 

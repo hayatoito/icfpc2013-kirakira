@@ -87,11 +87,11 @@ class BVTest extends FunSuite {
   test("eval fold") {
     val sum = Lambda("x", Fold(Id("x"), ZERO, "y", "z", Op2(Plus, Id("y"), Id("z"))))
     assert(applyFunction(sum, 0x010203) === 6)
-    
+
     val sumAfterDoubled = Lambda("x", Fold(Id("x"), ZERO, "y", "z", Op2(Plus, Op2(Plus, Id("y"), Id("y")), Id("z"))))
     assert(applyFunction(sumAfterDoubled, 0x010203) === 12)
   }
-  
+
   test("parser") {
     assert(parse("x") === Id("x"))
     assert(parse("(not 1)") === Op1(Not, ONE))
@@ -102,5 +102,9 @@ class BVTest extends FunSuite {
     val source = "(lambda (x) (fold x 0 (lambda (y z) (plus y z))))"
     assert(stringify(parse(source)) === source)
   }
-  
+
+  test("parse hex") {
+    assert("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF".asLong == -1L)
+  }
+
 }

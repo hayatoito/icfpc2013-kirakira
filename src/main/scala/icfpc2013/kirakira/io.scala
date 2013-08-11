@@ -36,7 +36,15 @@ object io {
 
   case class ProgramInfo(id: String, size: Int, operators: List[String], solved: Boolean,
     timeLeft: Option[Double]) extends Ordered[ProgramInfo] {
-    override def compare(that: ProgramInfo): Int = size - that.size
+
+    def howEasy: Int = {
+      size + (if (operators.contains("tfold")) 1000 else 0) +
+        (if (operators.contains("fold")) 1000 else 0) +
+        (if (operators.contains("if0")) 2 else 0)
+    }
+
+    override def compare(that: ProgramInfo): Int = howEasy - that.howEasy
+
   }
 
   def myproblems(): Seq[ProgramInfo] = {
@@ -79,6 +87,12 @@ object io {
     }
   }
 
+  def convert(operators: List[String]): bv.Operators = {
+    bv.Operators(
+      bv.operators1.filter(op1 => operators.contains(op1.value)),
+      bv.operators2.filter(op2 => operators.contains(op2.value)))
+  }
+
   case class TrainResponse(challenge: String, id: String, size: Int, operators: bv.Operators)
 
   def train(size: Int, operators: List[String] = Nil): TrainResponse = {
@@ -86,18 +100,16 @@ object io {
     val response = post(requestURL("train"), json).asInstanceOf[Map[String, Any]]
     val trainOperators = asListString(response, "operators")
     TrainResponse(challenge = asString(response, "challenge"), id = asString(response, "id"), size = asInt(response, "size"),
-      operators = bv.Operators(
-        bv.operators1.filter(op1 => trainOperators.contains(op1.value)),
-        bv.operators2.filter(op2 => trainOperators.contains(op2.value))))
+      operators = convert(trainOperators))
   }
 
 }
 
 object IOMain extends App {
   import io._
-  //  val problems = io.myproblems()
-  //  println(problems)
-  //  problems.sorted foreach println
+  val problems = io.myproblems()
+  println(problems)
+  problems.sorted foreach println
 
   // Program(zWqJMDA99HvjBA1VEvQg5Zbc,3,Set(shr16),false,None)
 
