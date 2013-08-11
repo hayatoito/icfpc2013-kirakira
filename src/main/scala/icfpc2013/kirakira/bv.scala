@@ -66,7 +66,7 @@ object bv {
 
   case class Constant(n: Long) extends Expression
   case class Id(x: String) extends Expression
-  case class If(e0: Expression, e1: Expression, e2: Expression) extends Expression
+  case class If0(e0: Expression, e1: Expression, e2: Expression) extends Expression
   case class Op1(op: Op1Symbol, e: Expression) extends Expression
   case class Op2(op: Op2Symbol, e1: Expression, e2: Expression) extends Expression
   case class Fold(e0: Expression, e1: Expression, x: String, y: String, e: Expression) extends Expression
@@ -98,7 +98,7 @@ object bv {
     lazy val id = ident ^^ { case x => Id(x) }
     lazy val op1 = "(" ~ ident ~ expr ~ ")" ^^ { case "(" ~ v ~ e ~ ")" => Op1(toOp1(v), e) }
     lazy val op2 = "(" ~ ident ~ expr ~ expr ~ ")" ^^ { case "(" ~ v ~ e1 ~ e2 ~ ")" => Op2(toOp2(v), e1, e2) }
-    lazy val if0 = "(" ~ "if0" ~ expr ~ expr ~ expr ~ ")" ^^ { case "(" ~ "if0" ~ e0 ~ e1 ~ e2 ~ ")" => If(e0, e1, e2) }
+    lazy val if0 = "(" ~ "if0" ~ expr ~ expr ~ expr ~ ")" ^^ { case "(" ~ "if0" ~ e0 ~ e1 ~ e2 ~ ")" => If0(e0, e1, e2) }
     lazy val fold = "(" ~ "fold" ~ expr ~ expr ~ "(" ~ "lambda" ~ "(" ~ ident ~ ident ~ ")" ~ expr ~ ")" ~ ")" ^^
       { case "(" ~ "fold" ~ e0 ~ e1 ~ "(" ~ "lambda" ~ "(" ~ x ~ y ~ ")" ~ e2 ~ ")" ~ ")" => Fold(e0, e1, x, y, e2) }
     lazy val lambda = "(" ~ "lambda" ~ "(" ~ ident ~ ")" ~ expr ~ ")" ^^
@@ -131,7 +131,7 @@ object bv {
     case Op2(Plus, e1, e2) => eval(e1, env) + eval(e2, env)
 
     case Id(x) => env.lookup(x)
-    case If(e0, e1, e2) => if (eval(e0, env) != 0) eval(e1, env) else eval(e2, env)
+    case If0(e0, e1, e2) => if (eval(e0, env) == 0) eval(e1, env) else eval(e2, env)
     case Fold(e0, e1, x, y, e) => {
       val n0 = eval(e0, env)
       val n1 = eval(e1, env)
@@ -151,7 +151,7 @@ object bv {
     case Op1(op1, e) => s"(${op1.value} ${stringify(e)})"
     case Op2(op2, e1, e2) => s"(${op2.value} ${stringify(e1)} ${stringify(e2)})"
     case Id(x) => x
-    case If(e0, e1, e2) => s"(if0 ${stringify(e0)} ${stringify(e1)} ${stringify(e2)})"
+    case If0(e0, e1, e2) => s"(if0 ${stringify(e0)} ${stringify(e1)} ${stringify(e2)})"
     case Fold(e0, e1, x, y, e) => s"(fold ${stringify(e0)} ${stringify(e1)} (lambda (${x} ${y}) ${stringify(e)}))"
     case Lambda(x, e) => s"(lambda (${x}) ${stringify(e)})"
   }
@@ -161,7 +161,7 @@ object bv {
     case Op1(_, e) => 1 + size(e)
     case Op2(_, e1, e2) => 1 + size(e1) + size(e2)
     case Id(_) => 1
-    case If(e0, e1, e2) => 1 + size(e0) + size(e1) + size(e2)
+    case If0(e0, e1, e2) => 1 + size(e0) + size(e1) + size(e2)
     case Fold(e0, e1, x, y, e) => 2 + size(e0) + size(e1) + size(e)
     case Lambda(x, e) => 1 + size(e)
   }
@@ -193,19 +193,21 @@ object bv {
           e1 <- generateExpressions(size1, operators, usedIds)
           e2 <- generateExpressions(size2, operators, usedIds)
           e3 <- generateExpressions(size3, operators, usedIds)
-        } yield If(e1, e2, e3)) ++
-        (for {
-          size1 <- 1 to (size - 3)
-          size2 <- 1 to (size - 2 - size1)
-          size3 = size - 1 - size1 - size2
-          id1 = "x" + usedIds.size
-          id2 = "x" + (usedIds.size + 1)
-          e1 <- generateExpressions(size1, operators, usedIds)
-          e2 <- generateExpressions(size2, operators, usedIds)
-          e3 <- generateExpressions(size3, operators, usedIds ++ Set(id1, id2))
-        } yield Fold(e1, e2, id1, id2, e3))
-
+        } yield If0(e1, e2, e3)) ++ generateFold(size, operators, usedIds)
     }
+  }
+
+  def generateFold(size: Int, operators: Operators, usedIds: Set[String]): Seq[Expression] = {
+    (for {
+      size1 <- 1 to (size - 4)
+      size2 <- 1 to (size - 3 - size1)
+      size3 = size - 2 - size1 - size2
+      id1 = "x" + usedIds.size
+      id2 = "x" + (usedIds.size + 1)
+      e1 <- generateExpressions(size1, operators, usedIds)
+      e2 <- generateExpressions(size2, operators, usedIds)
+      e3 <- generateExpressions(size3, operators, usedIds ++ Set(id1, id2))
+    } yield Fold(e1, e2, id1, id2, e3))
   }
 
   case class InputOutput(input: Long, output: Long)
@@ -215,16 +217,22 @@ object bv {
   def sleep(): Unit = { Thread.sleep(5000) }
 
   def tachikoma(): Unit = {
-    val problems = io.myproblems.filterNot(p => p.solved).sorted
+    val problems = io.myproblems.filterNot(p => p.solved).filterNot(p => p.timeLeft.getOrElse(1.0) == 0.0).sorted
     for {
-      problem <- problems.take(10)
+      problem <- problems.take(200)
     } {
       val inputs = (-128L until 128L)
       sleep()
       val outputs = io.eval(Some(problem.id), None, inputs.map(n => n.toHex).toList).
         outputs.map(x => x.asLong)
 
-      val expressions = generateExpressions(problem.size - 1, io.convert(problem.operators), Set("x"))
+      val expressions =
+        if (problem.operators.contains("tfold")) {
+          generateFold(problem.size - 1, io.convert(problem.operators), Set("x"))
+        } else {
+          generateExpressions(problem.size - 1, io.convert(problem.operators), Set("x"))
+        }
+
       val inputOutputs = inputs.zip(outputs) map (x => InputOutput(x._1, x._2))
       val correctPrograms =
         for {
@@ -236,13 +244,17 @@ object bv {
       correctPrograms foreach (x => println(stringify(x)))
 
       def tryGuess(ps: List[Expression]): Unit = ps match {
-        case x :: xs => {
+        case e :: es => {
           sleep()
-          val guessResponse = io.guess(problem.id, stringify(x)) // "(lamdba (x) (plus x 1)
+          val guessResponse = io.guess(problem.id, stringify(e)) // "(lamdba (x) (plus x 1)
           println(guessResponse)
-          if (guessResponse.status == "mismatch") tryGuess(xs)
+          if (guessResponse.status == "mismatch") {
+            println("remaining: " + ps.size)
+            tryGuess(es.filter(e =>
+              applyFunction(Lambda("x", e), guessResponse.input.asLong) == guessResponse.answer))
+          } else if (guessResponse.status == "error") throw BVError()
         }
-        case Nil => Unit
+        case Nil => throw BVError()
       }
       tryGuess(correctPrograms.toList)
     }
@@ -275,6 +287,28 @@ object BVMain extends App {
   // println(parse("(lambda (x) (and x (if0 (and 1 x) 0 x)))"))
 
   tachikoma()
+
+  // generateFold(7, allOperators, Set("x")) map stringify foreach println
+
+  // val e = parse("(if0 (shr1 (shr4 x)) (not x) (shr1 0))")
+
+  //  val src = "(lambda (x) (if0 (shr1 (shr4 x)) (not x) (shr1 0)))"
+  //  val e = "(if0 (shr1 (shr4 x)) (not x) (shr1 0))"
+
+  //  println(applyFunction(Lambda("x", parse(e)), 0))
+
+  // val src = "(lambda (x) (if0 (shr1 (shr4 0)) (not 0) (shr1 0)))"
+
+  // val src = "(lambda (x) (if0 0 (not 0) 0))"
+  //  val src = "(lambda (x) (if0 0 1 0))"
+  //
+  //  val evalResponse = io.eval(None, Some(src),
+  //    List("0x00"))
+  // -> -1
+
+  // ("(if0 0 (not 0) 0)")
+
+  //  println(applyFunction(Lambda("x", e), 0))
   // generateExpressions(4, allOperators) map stringify foreach println
   // solveTrain(size = 5)
 

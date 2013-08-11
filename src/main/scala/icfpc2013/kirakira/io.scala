@@ -107,17 +107,26 @@ object io {
 
 object IOMain extends App {
   import io._
-  val problems = io.myproblems()
-  println(problems)
-  problems.sorted foreach println
+  //  val problems = io.myproblems()
+  //  println(problems)
+  //  problems.sorted foreach println
 
   // Program(zWqJMDA99HvjBA1VEvQg5Zbc,3,Set(shr16),false,None)
 
-  println(train(size = 3))
+  //  println(train(size = 3))
 
-  //    val evalResponse = io.eval(io.EvalRequest(None, Some("(lambda (x) (shr1 (plus (plus 1 1) (plus 1 1))))"), 
-  //        List("0x01", "0x02", "0x03", "0x04")))
-  //   println(evalResponse)
+  val src = "(lambda (x) (if0 (shr1 (shr4 x)) (not x) (shr1 0)))"
+  // val e = parse("(if0 (shr1 (shr4 x)) (not x) (shr1 0))")
+
+  //  val evalResponse = io.eval(None, Some(src),
+  //    List("0x00"))
+  // -> -1
+
+  //  val evalResponse = io.eval(None, Some("(lambda (x) (if0 (shr1 (shr4 x)) (not x) (shr1 0)))"),
+  //    List("0x00"))
+  //  val evalResponse = io.eval(None, Some("(lambda (x) x)"),
+  //    List("0x00"))
+  // println(evalResponse)
 
   //    val evalResponse = io.eval(io.EvalRequest(Some("zWqJMDA99HvjBA1VEvQg5Zbc"), None, 
   //        List("0x01", "0x02", "0x03", "0x04")))

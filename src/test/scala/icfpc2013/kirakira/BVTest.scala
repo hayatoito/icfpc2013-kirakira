@@ -75,8 +75,8 @@ class BVTest extends FunSuite {
   }
 
   test("eval if") {
-    assert(eval(If(ZERO, ONE, ZERO)) === 0)
-    assert(eval(If(ONE, ONE, ZERO)) === 1)
+    assert(eval(If0(ZERO, ONE, ZERO)) === 1)
+    assert(eval(If0(ONE, ONE, ZERO)) === 0)
   }
 
   test("eval lambda") {
