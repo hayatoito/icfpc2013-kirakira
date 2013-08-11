@@ -6,7 +6,7 @@ import scala.util.parsing.combinator.JavaTokenParsers
 object bv {
 
   implicit class RichLong(val n: Long) extends AnyVal {
-    def toHex: String = f"0x${n}%08x"
+    def toHex: String = f"0x${n}%016x"
   }
 
   implicit class RichString(val s: String) extends AnyVal {
@@ -165,25 +165,25 @@ object bv {
     case Lambda(x, e) => 1 + size(e)
   }
 
-  def constants = List(ZERO, ONE)
   case class Operators(op1s: List[Op1Symbol], op2s: List[Op2Symbol])
 
   val allOperators = Operators(operators1, operators2)
+  def constants = List(ZERO, ONE)
 
-  def generateExpressions(size: Int, operators: Operators): Seq[Expression] = {
-    if (size == 1) constants
+  def generateExpressions(size: Int, operators: Operators, usedIds: Set[String]): Seq[Expression] = {
+    if (size == 0) throw BVError()
+    else if (size == 1) constants ++ (usedIds.map(id => Id(id)))
     else {
       (for {
-        e1Size <- 1 to (size - 1)
         op1 <- operators.op1s
-        e1 <- generateExpressions(e1Size, operators)
+        e1 <- generateExpressions(size - 1, operators, usedIds)
       } yield Op1(op1, e1)) ++
         (for {
-          e1Size <- 1 to size - 2
-          e2Size = size - 1 - e1Size
+          size1 <- 1 to (size - 1) / 2
+          size2 = size - 1 - size1
           op2 <- operators.op2s
-          e1 <- generateExpressions(e1Size, operators)
-          e2 <- generateExpressions(e2Size, operators)
+          e1 <- generateExpressions(size1, operators, usedIds)
+          e2 <- generateExpressions(size2, operators, usedIds)
         } yield Op2(op2, e1, e2))
     }
   }
@@ -194,14 +194,14 @@ object bv {
   def solveTrain(size: Int): Unit = {
     val trainResponse = io.train(size = size)
 
-    val expressions = generateExpressions(size - 1, trainResponse.operators)
+    val expressions = generateExpressions(size - 1, trainResponse.operators, Set("x"))
     val inputs = 0 until 10
     for {
       e <- expressions
       x <- inputs
     } {
       val program = Lambda("x", e)
-      println(s"program ${stringify(program)} input: ${x} -> ${applyFunction(program, x)}")
+      println(s"f(x) = ${stringify(program)}, f(${x}) -> ${applyFunction(program, x)}")
     }
 
   }
@@ -212,7 +212,16 @@ object BVMain extends App {
   import bv._
   // generateExpressions(4, allOperators) map stringify foreach println
 
-  solveTrain(4)
+  for {
+    e <- generateExpressions(size = 3, allOperators, Set("x"))
+    x <- 0 until 4
+  } {
+    val program = Lambda("x", e)
+    val out = applyFunction(program, x)
+    println(s"f(x) = ${stringify(program)}, f(${x}) -> ${out} (${out.toHex})")
+  }
+
+  // solveTrain(size=4)
 
   //  val program = "(plus 1 (plus 0 1))"
   //  println(parse(program).get)
