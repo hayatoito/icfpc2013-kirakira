@@ -18,9 +18,9 @@ libraryDependencies ++= Seq(
   "org.scalatest" %% "scalatest" % "2.0.RC1-SNAP2" % "test"
 )
 
-mainClass in (Compile, run) := Some("icfpc2013.kirakira.Hello")
+mainClass in (Compile, run) := Some("icfpc2013.kirakira.BVMain")
 
 packSettings
 
-packMain := Map("hello" -> "icfpc2013.kirakira.Hello",
+packMain := Map("hello" -> "icfpc2013.kirakira.BVMain",
                 "hellojava" -> "icfpc2013.kirakira.HelloJava")

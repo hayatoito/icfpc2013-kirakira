@@ -99,7 +99,7 @@ class BVTest extends FunSuite {
 
   test("parser and stringify") {
     assert(stringify(parse("x")) === "x")
-    val source = "(lambda (x) (fold x 0 (lambda y z) (plus y z)))"
+    val source = "(lambda (x) (fold x 0 (lambda (y z) (plus y z))))"
     assert(stringify(parse(source)) === source)
   }
   

@@ -1,29 +1,65 @@
 package icfpc2013.kirakira
 
-import scala.util.parsing.combinator._
 import scala.collection.mutable
-import java.lang.Error
+import scala.util.parsing.combinator.JavaTokenParsers
 
 object bv {
 
+  implicit class RichLong(val n: Long) extends AnyVal {
+    def toHex: String = f"0x${n}%08x"
+  }
+
+  implicit class RichString(val s: String) extends AnyVal {
+    def asLong: Long = {
+      assert(s.take(2) == "0x")
+      java.lang.Long.parseLong(s.drop(2), 16)
+    }
+  }
+
   case class BVError() extends RuntimeException
 
-  sealed trait Op1Symbol
-  case object Not extends Op1Symbol
-  case object Shl1 extends Op1Symbol
-  case object Shr1 extends Op1Symbol
-  case object Shr4 extends Op1Symbol
-  case object Shr16 extends Op1Symbol
+  sealed trait Op1Symbol {
+    def value: String
+  }
+  case object Not extends Op1Symbol {
+    override def value = "not"
+  }
+  case object Shl1 extends Op1Symbol {
+    override def value = "shl1"
+  }
+  case object Shr1 extends Op1Symbol {
+    override def value = "shr1"
+  }
+  case object Shr4 extends Op1Symbol {
+    override def value = "shr4"
+  }
+  case object Shr16 extends Op1Symbol {
+    override def value = "shr16"
+  }
 
-  def operations1 = List(Not, Shl1, Shr1, Shr4, Shr16)
+  def operators1 = List(Not, Shl1, Shr1, Shr4, Shr16)
 
-  sealed trait Op2Symbol
-  case object And extends Op2Symbol
-  case object Or extends Op2Symbol
-  case object Xor extends Op2Symbol
-  case object Plus extends Op2Symbol
+  def toOp1(s: String) = operators1.find(_.value == s).get
 
-  def operations2 = List(And, Or, Xor, Plus)
+  sealed trait Op2Symbol {
+    def value: String
+  }
+  case object And extends Op2Symbol {
+    def value = "and"
+  }
+  case object Or extends Op2Symbol {
+    def value = "or"
+  }
+  case object Xor extends Op2Symbol {
+    def value = "xor"
+  }
+  case object Plus extends Op2Symbol {
+    def value = "plus"
+  }
+
+  def operators2 = List(And, Or, Xor, Plus)
+
+  def toOp2(s: String) = operators2.find(_.value == s).get
 
   sealed trait Expression
 
@@ -59,17 +95,8 @@ object bv {
     lazy val expr: Parser[Expression] = constant | id | if0 | op1 | op2 | fold | lambda
     lazy val constant = wholeNumber ^^ { case num => Constant(num.toLong) }
     lazy val id = ident ^^ { case x => Id(x) }
-    lazy val op1 = not | shl1 | shr1 | shr4 | shr16
-    lazy val not = "(" ~ "not" ~ expr ~ ")" ^^ { case "(" ~ "not" ~ e ~ ")" => Op1(Not, e) }
-    lazy val shl1 = "(" ~ "shl1" ~ expr ~ ")" ^^ { case "(" ~ "shl1" ~ e ~ ")" => Op1(Shl1, e) }
-    lazy val shr1 = "(" ~ "shr1" ~ expr ~ ")" ^^ { case "(" ~ "shr1" ~ e ~ ")" => Op1(Shr1, e) }
-    lazy val shr4 = "(" ~ "shr4" ~ expr ~ ")" ^^ { case "(" ~ "shr4" ~ e ~ ")" => Op1(Shr4, e) }
-    lazy val shr16 = "(" ~ "shr16" ~ expr ~ ")" ^^ { case "(" ~ "shr16" ~ e ~ ")" => Op1(Shr16, e) }
-    lazy val op2 = and | or | xor | plus | shr16
-    lazy val and = "(" ~ "and" ~ expr ~ expr ~ ")" ^^ { case "(" ~ "and" ~ e1 ~ e2 ~ ")" => Op2(And, e1, e2) }
-    lazy val or = "(" ~ "or" ~ expr ~ expr ~ ")" ^^ { case "(" ~ "or" ~ e1 ~ e2 ~ ")" => Op2(Or, e1, e2) }
-    lazy val xor = "(" ~ "xor" ~ expr ~ expr ~ ")" ^^ { case "(" ~ "xor" ~ e1 ~ e2 ~ ")" => Op2(Xor, e1, e2) }
-    lazy val plus = "(" ~ "plus" ~ expr ~ expr ~ ")" ^^ { case "(" ~ "plus" ~ e1 ~ e2 ~ ")" => Op2(Plus, e1, e2) }
+    lazy val op1 = "(" ~ ident ~ expr ~ ")" ^^ { case "(" ~ v ~ e ~ ")" => Op1(toOp1(v), e) }
+    lazy val op2 = "(" ~ ident ~ expr ~ expr ~ ")" ^^ { case "(" ~ v ~ e1 ~ e2 ~ ")" => Op2(toOp2(v), e1, e2) }
     lazy val if0 = "(" ~ "if" ~ expr ~ expr ~ expr ^^ { case "(" ~ "if" ~ e0 ~ e1 ~ e2 => If(e0, e1, e2) }
     lazy val fold = "(" ~ "fold" ~ expr ~ expr ~ "(" ~ "lambda" ~ "(" ~ ident ~ ident ~ ")" ~ expr ~ ")" ~ ")" ^^
       { case "(" ~ "fold" ~ e0 ~ e1 ~ "(" ~ "lambda" ~ "(" ~ x ~ y ~ ")" ~ e2 ~ ")" ~ ")" => Fold(e0, e1, x, y, e2) }
@@ -120,18 +147,8 @@ object bv {
 
   def stringify(e: Expression): String = e match {
     case Constant(n) => n.toString
-
-    case Op1(Not, e) => s"(not ${stringify(e)})"
-    case Op1(Shl1, e) => s"(shl1 ${stringify(e)})"
-    case Op1(Shr1, e) => s"(shr1 ${stringify(e)})"
-    case Op1(Shr4, e) => s"(shr4 ${stringify(e)})"
-    case Op1(Shr16, e) => s"(shr16 ${stringify(e)})"
-
-    case Op2(Xor, e1, e2) => s"(xor ${stringify(e1)} ${stringify(e2)})"
-    case Op2(Plus, e1, e2) => s"(plus ${stringify(e1)} ${stringify(e2)})"
-    case Op2(And, e1, e2) => s"(and ${stringify(e1)} ${stringify(e2)})"
-    case Op2(Or, e1, e2) => s"(or ${stringify(e1)} ${stringify(e2)})"
-
+    case Op1(op1, e) => s"(${op1.value} ${stringify(e)})"
+    case Op2(op2, e1, e2) => s"(${op2.value} ${stringify(e1)} ${stringify(e2)})"
     case Id(x) => x
     case If(e0, e1, e2) => s"(if ${stringify(e0)} ${stringify(e1)} ${stringify(e2)})"
     case Fold(e0, e1, x, y, e) => s"(fold ${stringify(e0)} ${stringify(e1)} (lambda (${x} ${y}) ${stringify(e)}))"
@@ -149,24 +166,24 @@ object bv {
   }
 
   def constants = List(ZERO, ONE)
-  case class Operations(op1s: List[Op1Symbol], op2s: List[Op2Symbol])
+  case class Operators(op1s: List[Op1Symbol], op2s: List[Op2Symbol])
 
-  val allOperations = Operations(operations1, operations2)
+  val allOperators = Operators(operators1, operators2)
 
-  def generateExpressions(size: Int, operations: Operations): Seq[Expression] = {
+  def generateExpressions(size: Int, operators: Operators): Seq[Expression] = {
     if (size == 1) constants
     else {
       (for {
         e1Size <- 1 to (size - 1)
-        op1 <- operations.op1s
-        e1 <- generateExpressions(e1Size, operations)
+        op1 <- operators.op1s
+        e1 <- generateExpressions(e1Size, operators)
       } yield Op1(op1, e1)) ++
         (for {
           e1Size <- 1 to size - 2
           e2Size = size - 1 - e1Size
-          op2 <- operations.op2s
-          e1 <- generateExpressions(e1Size, operations)
-          e2 <- generateExpressions(e2Size, operations)
+          op2 <- operators.op2s
+          e1 <- generateExpressions(e1Size, operators)
+          e2 <- generateExpressions(e2Size, operators)
         } yield Op2(op2, e1, e2))
     }
   }
@@ -174,15 +191,28 @@ object bv {
   case class InputOutput(input: Long, output: Long)
   def matchInput(e: Expression, example: InputOutput): Boolean = (eval(e) == example.output)
 
-  def solveTrain(size: Long): Unit = {
-    val trainResponse = io.train(size = 3)
+  def solveTrain(size: Int): Unit = {
+    val trainResponse = io.train(size = size)
+
+    val expressions = generateExpressions(size - 1, trainResponse.operators)
+    val inputs = 0 until 10
+    for {
+      e <- expressions
+      x <- inputs
+    } {
+      val program = Lambda("x", e)
+      println(s"program ${stringify(program)} input: ${x} -> ${applyFunction(program, x)}")
+    }
+
   }
 
 }
 
-object bvmain extends App {
+object BVMain extends App {
   import bv._
-  generateExpressions(4, allOperations) map stringify foreach println
+  // generateExpressions(4, allOperators) map stringify foreach println
+
+  solveTrain(4)
 
   //  val program = "(plus 1 (plus 0 1))"
   //  println(parse(program).get)
