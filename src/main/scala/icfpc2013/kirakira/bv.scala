@@ -176,12 +176,7 @@ object bv {
     case Op1(Shr4, Constant(_)) => true
     case Op1(Shr16, Constant(_)) => true
     case Op1(Shl1, ZERO) => true
-    case Op1(Shr1, Op1(Shr1, _)) => true
-    case Op1(Shr1, Op1(Shr4, _)) => true
-    case Op1(Shr1, Op1(Shr16, _)) => true
     case Op1(Shr4, Op1(Shr1, _)) => true
-    case Op1(Shr4, Op1(Shr4, _)) => true
-    case Op1(Shr4, Op1(Shr16, _)) => true
     case Op1(Shr16, Op1(Shr1, _)) => true
     case Op1(Shr16, Op1(Shr4, _)) => true
     case Op1(Shr16, Op1(Shr16, _)) => true
