@@ -168,8 +168,6 @@ object bv {
     case Lambda(x, e) => 1 + size(e)
   }
 
-  val ALLONE = Op1(Not, ZERO)
-
   def redundant(e: Expression): Boolean = e match {
     case Op1(Shr1, ZERO) => true
     case Op1(Shr1, ONE) => true
@@ -184,26 +182,19 @@ object bv {
     case Op2(And, ZERO, _) => true
     case Op2(And, _, ZERO) => true
     case Op2(And, x, y) if x == y => true
-    case Op2(And, ALLONE, _) => true
-    case Op2(And, _, ALLONE) => true
     case Op2(And, x, Op2(And, y, _)) if x == y => true
     case Op2(Or, ZERO, _) => true
     case Op2(Or, _, ZERO) => true
     case Op2(Or, ONE, ONE) => true
-    case Op2(Or, ALLONE, _) => true
-    case Op2(Or, _, ALLONE) => true
     case Op2(Or, x, Op2(Or, y, _)) if x == y => true
     case Op2(Or, x, y) if x == y => true
     case Op2(Xor, ZERO, _) => true
     case Op2(Xor, _, ZERO) => true
     case Op2(Xor, ONE, ONE) => true
     case Op2(Xor, x, y) if x == y => true
-    case Op2(Xor, ALLONE, _) => true
-    case Op2(Xor, _, ALLONE) => true
     case Op2(Xor, x, Op2(Xor, y, _)) if x == y => true
     case If0(ZERO, _, _) => true
     case If0(ONE, _, _) => true
-    case If0(ALLONE, _, _) => true
     case If0(_, x, y) if x == y => true
     case _ => false
   }
@@ -262,10 +253,13 @@ object bv {
       outputs.map(x => x.asLong)
     val inputOutputs = inputs.zip(outputs) map (x => InputOutput(x._1, x._2))
 
+    def gen(f: (Int, Set[String]) => Seq[Expression]): Seq[Expression] =
+      (1 to problem.size - 1).map { size => f(size, Set("x")) }.
+        foldLeft(Seq.empty[Expression])((x, xs) => x ++ xs)
+
     val expressions =
       for {
-        e <- (if (problem.operators.contains("tfold")) generateFold(problem.size - 1, Set("x"))
-        else generateExpressions(problem.size - 1, Set("x")))
+        e <- gen(if (problem.operators.contains("tfold")) generateFold else generateExpressions)
         if inputOutputs.forall { case InputOutput(input, output) => evalX(e, input) == output }
       } yield e
     expressions.take(20) foreach { e => println(stringify(Lambda("x", e))) }

@@ -26,7 +26,7 @@ object io {
       val diff = now - requestTimes.last
       if (diff < windowMills) {
         val sleepTime = requestTimes.last + windowMills - now + 200
-        println("sleeping: " + sleepTime)
+        println(s"sleeping ${sleepTime}ms...")
         Thread.sleep(sleepTime)
       }
     }
