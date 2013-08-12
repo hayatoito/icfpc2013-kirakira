@@ -100,7 +100,9 @@ object io {
   def convert(operators: List[String]): bv.Operators = {
     bv.Operators(
       bv.operators1.filter(op1 => operators.contains(op1.value)),
-      bv.operators2.filter(op2 => operators.contains(op2.value)))
+      bv.operators2.filter(op2 => operators.contains(op2.value)),
+      operators.contains("if0"),
+      operators.contains("fold"))
   }
 
   case class TrainResponse(challenge: String, id: String, size: Int, operators: List[String])

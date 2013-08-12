@@ -168,40 +168,59 @@ object bv {
     case Lambda(x, e) => 1 + size(e)
   }
 
+  val NOTZERO = Op1(Not, ZERO)
+  val NOTONE = Op1(Not, ONE)
+
   def redundant(e: Expression): Boolean = e match {
-    case Op1(Shr1, ZERO) => true
-    case Op1(Shr1, ONE) => true
-    case Op1(Shr4, ZERO) => true
-    case Op1(Shr4, ONE) => true
-    case Op1(Shr16, ZERO) => true
-    case Op1(Shr16, ONE) => true
+    case Op1(Shr1, Constant(_)) => true
+    case Op1(Shr4, Constant(_)) => true
+    case Op1(Shr16, Constant(_)) => true
     case Op1(Shl1, ZERO) => true
+    case Op1(Shr1, Op1(Shr1, _)) => true
+    case Op1(Shr1, Op1(Shr4, _)) => true
+    case Op1(Shr1, Op1(Shr16, _)) => true
+    case Op1(Shr4, Op1(Shr1, _)) => true
+    case Op1(Shr4, Op1(Shr4, _)) => true
+    case Op1(Shr4, Op1(Shr16, _)) => true
+    case Op1(Shr16, Op1(Shr1, _)) => true
+    case Op1(Shr16, Op1(Shr4, _)) => true
+    case Op1(Shr16, Op1(Shr16, _)) => true
     case Op1(Not, Op1(Not, _)) => true
+    case Op2(_, Id(_), Constant(_)) => true
     case Op2(Plus, ZERO, _) => true
     case Op2(Plus, _, ZERO) => true
     case Op2(And, ZERO, _) => true
     case Op2(And, _, ZERO) => true
+    case Op2(And, NOTZERO, _) => true
+    case Op2(And, _, NOTZERO) => true
     case Op2(And, x, y) if x == y => true
     case Op2(And, x, Op2(And, y, _)) if x == y => true
     case Op2(Or, ZERO, _) => true
     case Op2(Or, _, ZERO) => true
+    case Op2(Or, NOTZERO, _) => true
+    case Op2(Or, _, NOTZERO) => true
     case Op2(Or, ONE, ONE) => true
     case Op2(Or, x, Op2(Or, y, _)) if x == y => true
     case Op2(Or, x, y) if x == y => true
     case Op2(Xor, ZERO, _) => true
     case Op2(Xor, _, ZERO) => true
+    case Op2(Xor, NOTZERO, _) => true
+    case Op2(Xor, _, NOTZERO) => true
     case Op2(Xor, ONE, ONE) => true
     case Op2(Xor, x, y) if x == y => true
     case Op2(Xor, x, Op2(Xor, y, _)) if x == y => true
     case If0(ZERO, _, _) => true
     case If0(ONE, _, _) => true
+    case If0(NOTZERO, _, _) => true
+    case If0(NOTONE, _, _) => true
+    case If0(Op1(Shl1, Constant(_)), _, _) => true
     case If0(_, x, y) if x == y => true
     case _ => false
   }
 
-  case class Operators(op1s: List[Op1Symbol], op2s: List[Op2Symbol])
+  case class Operators(op1s: List[Op1Symbol], op2s: List[Op2Symbol], if0: Boolean, fold: Boolean)
 
-  val allOperators = Operators(operators1, operators2)
+  val allOperators = Operators(operators1, operators2, true, true)
   def constants = List(ZERO, ONE)
 
   case class InputOutput(input: Long, output: Long)
@@ -220,20 +239,23 @@ object bv {
             e1 <- generateExpressions(size - 1, usedIds)
           } yield Op1(op1, e1)) ++
             (for {
+              op2 <- operators.op2s
               size1 <- 1 to (size - 1) / 2
               size2 = size - 1 - size1
-              op2 <- operators.op2s
               e1 <- generateExpressions(size1, usedIds)
               e2 <- generateExpressions(size2, usedIds)
             } yield Op2(op2, e1, e2)) ++
-            (for {
-              size1 <- 1 to (size - 3)
-              size2 <- 1 to (size - 2 - size1)
-              size3 = size - 1 - size1 - size2
-              e1 <- generateExpressions(size1, usedIds)
-              e2 <- generateExpressions(size2, usedIds)
-              e3 <- generateExpressions(size3, usedIds)
-            } yield If0(e1, e2, e3)) ++ generateFold(size, usedIds)
+            (if (operators.if0) {
+              for {
+                size1 <- 1 to (size - 3)
+                size2 <- 1 to (size - 2 - size1)
+                size3 = size - 1 - size1 - size2
+                e1 <- generateExpressions(size1, usedIds)
+                e2 <- generateExpressions(size2, usedIds)
+                e3 <- generateExpressions(size3, usedIds)
+              } yield If0(e1, e2, e3)
+            } else Nil) ++
+            (if (operators.fold) generateFold(size, usedIds) else Nil)
         }).filterNot(redundant))
     }
 
@@ -307,7 +329,7 @@ object BVMain extends App {
   import bv._
   (0 to 100) forall { i =>
     println("problem: " + i)
-    solveTrain(size = 8)
+    solveTrain(size = 10)
   }
   // tachikoma()
 }
