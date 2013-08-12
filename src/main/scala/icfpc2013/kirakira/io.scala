@@ -16,9 +16,27 @@ object io {
   def serverURL = "http://icfpc2013.cloudapp.net/"
   def requestURL(requestType: String): String = serverURL + requestType + "?auth=" + token
 
+  val windowMills: Long = 20 * 1000
+  val windowRequests = 4
+  var requestTimes: List[Long] = Nil
+
+  def sleep(): Unit = {
+    val now: Long = System.currentTimeMillis
+    if (requestTimes.size >= windowRequests) {
+      val diff = now - requestTimes.last
+      if (diff < windowMills) {
+        val sleepTime = requestTimes.last + windowMills - now + 200
+        println("sleeping: " + sleepTime)
+        Thread.sleep(sleepTime)
+      }
+    }
+  }
+
   def post(url: String, data: String): Any = {
+    sleep()
     println(s"url: ${url}, data: ${data}")
     val response = Http.postData(url, data).option(HttpOptions.connTimeout(10000)).option(HttpOptions.readTimeout(50000)).asString
+    requestTimes = (System.currentTimeMillis :: requestTimes).take(windowRequests)
     println(s"response: ${response}")
     JSON.parseFull(response).get
   }
@@ -36,13 +54,8 @@ object io {
 
   case class ProgramInfo(id: String, size: Int, operators: List[String], solved: Boolean,
     timeLeft: Option[Double]) extends Ordered[ProgramInfo] {
-
-    def howEasy: Int = {
-      size + operators.size
-    }
-
+    def howEasy: Int = size + operators.size
     override def compare(that: ProgramInfo): Int = howEasy - that.howEasy
-
   }
 
   def myproblems(): Seq[ProgramInfo] = {
@@ -61,8 +74,7 @@ object io {
       case None => JSONObject(Map("program" -> program.get, "arguments" -> JSONArray(arguments))).toString
     }
     val response = post(requestURL("eval"), json).asInstanceOf[Map[String, Any]]
-    if (response("status") == "ok")
-      EvalResponse(asListString(response, "outputs"))
+    if (response("status") == "ok") EvalResponse(asListString(response, "outputs"))
     else {
       println("error: " + response("message"))
       throw BVIOException()
@@ -91,47 +103,13 @@ object io {
       bv.operators2.filter(op2 => operators.contains(op2.value)))
   }
 
-  case class TrainResponse(challenge: String, id: String, size: Int, operators: bv.Operators)
+  case class TrainResponse(challenge: String, id: String, size: Int, operators: List[String])
 
   def train(size: Int, operators: List[String] = Nil): TrainResponse = {
     val json: String = JSONObject(Map("size" -> size, "operators" -> JSONArray(operators))).toString
     val response = post(requestURL("train"), json).asInstanceOf[Map[String, Any]]
-    val trainOperators = asListString(response, "operators")
     TrainResponse(challenge = asString(response, "challenge"), id = asString(response, "id"), size = asInt(response, "size"),
-      operators = convert(trainOperators))
+      operators = asListString(response, "operators"))
   }
-
 }
 
-object IOMain extends App {
-  import io._
-  //  val problems = io.myproblems()
-  //  println(problems)
-  //  problems.sorted foreach println
-
-  // Program(zWqJMDA99HvjBA1VEvQg5Zbc,3,Set(shr16),false,None)
-
-  //  println(train(size = 3))
-
-  val src = "(lambda (x) (if0 (shr1 (shr4 x)) (not x) (shr1 0)))"
-  // val e = parse("(if0 (shr1 (shr4 x)) (not x) (shr1 0))")
-
-  //  val evalResponse = io.eval(None, Some(src),
-  //    List("0x00"))
-  // -> -1
-
-  //  val evalResponse = io.eval(None, Some("(lambda (x) (if0 (shr1 (shr4 x)) (not x) (shr1 0)))"),
-  //    List("0x00"))
-  //  val evalResponse = io.eval(None, Some("(lambda (x) x)"),
-  //    List("0x00"))
-  // println(evalResponse)
-
-  //    val evalResponse = io.eval(io.EvalRequest(Some("zWqJMDA99HvjBA1VEvQg5Zbc"), None, 
-  //        List("0x01", "0x02", "0x03", "0x04")))
-  //   println(evalResponse)
-
-  // val guess = io.guess(io.GuessRequest("zWqJMDA99HvjBA1VEvQg5Zbc", "(lambda (x) (shr16 x))"))
-  // val guess = io.guess(io.GuessRequest("zWqJMDA99HvjBA1VEvQg5Zbc", "(lambda (x) (shr16 0))"))
-  // val guess = io.guess(io.GuessRequest("zWqJMDA99HvjBA1VEvQg5Zbc", "(lambda (x) (shr16 1))"))
-  // println(guess)
-}

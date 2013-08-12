@@ -107,4 +107,8 @@ class BVTest extends FunSuite {
     assert("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF".asLong == -1L)
   }
 
+  test("redundant") {
+    assert(redundant(Op1(Shr1, ZERO)) === true)
+  }
+
 }
