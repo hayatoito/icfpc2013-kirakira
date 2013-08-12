@@ -38,9 +38,7 @@ object io {
     timeLeft: Option[Double]) extends Ordered[ProgramInfo] {
 
     def howEasy: Int = {
-      size + (if (operators.contains("tfold")) 1000 else 0) +
-        (if (operators.contains("fold")) 1000 else 0) +
-        (if (operators.contains("if0")) 2 else 0)
+      size + operators.size
     }
 
     override def compare(that: ProgramInfo): Int = howEasy - that.howEasy

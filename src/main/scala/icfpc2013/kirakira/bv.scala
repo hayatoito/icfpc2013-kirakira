@@ -214,14 +214,31 @@ object bv {
 
   def matchInput(e: Expression, example: InputOutput): Boolean = (eval(e) == example.output)
 
-  def sleep(): Unit = { Thread.sleep(5000) }
+  val start: Long = System.currentTimeMillis - 1000 * 30
+  var times = List(start, start, start, start, start)
+
+  def sleep(): Unit = {
+    val now: Long = System.currentTimeMillis
+    if (times.last + 1000 * 20 + 100 > now) {
+      val sleepTime = times.head + 1000 * 20 + 100 - now
+      Thread.sleep(sleepTime)
+    }
+    times = System.currentTimeMillis :: times.tail
+  }
 
   def tachikoma(): Unit = {
+    sleep()
     val problems = io.myproblems.filterNot(p => p.solved).filterNot(p => p.timeLeft.getOrElse(1.0) == 0.0).sorted
+    problems.take(20) foreach println
+    println("problems size: " + problems.size)
+
+
     for {
-      problem <- problems.take(200)
+      problem <- problems
     } {
-      val inputs = (-128L until 128L)
+      println("problem: " + problem)
+      // val inputs = (-128L until 128L)
+      val inputs = (-8L until 8L)
       sleep()
       val outputs = io.eval(Some(problem.id), None, inputs.map(n => n.toHex).toList).
         outputs.map(x => x.asLong)
@@ -232,6 +249,7 @@ object bv {
         } else {
           generateExpressions(problem.size - 1, io.convert(problem.operators), Set("x"))
         }
+      println(" candidates size: " + expressions.size)
 
       val inputOutputs = inputs.zip(outputs) map (x => InputOutput(x._1, x._2))
       val correctPrograms =
@@ -241,7 +259,8 @@ object bv {
           if inputOutputs.forall { case InputOutput(input, output) => applyFunction(program, input) == output }
         } yield program
 
-      correctPrograms foreach (x => println(stringify(x)))
+      correctPrograms.take(20) foreach (x => println(stringify(x)))
+      println(" correct size: " + correctPrograms.size)
 
       def tryGuess(ps: List[Lambda]): Unit = ps match {
         case e :: es => {
@@ -252,11 +271,15 @@ object bv {
             println("filter: before " + es.size)
             val filtered = es.filter(e =>
               applyFunction(e, guessResponse.input.asLong) == guessResponse.answer.asLong)
-            println("filter: before " + filtered.size)
+            println("filter: after " + filtered.size)
             tryGuess(filtered)
-          } else if (guessResponse.status == "error") throw BVError()
+          } else if (guessResponse.status == "error") {
+            Unit
+          }
         }
-        case Nil => throw BVError()
+        case Nil => {
+          println(" No more candidate")
+        }
       }
       tryGuess(correctPrograms.toList)
     }
