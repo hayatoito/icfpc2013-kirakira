@@ -11,15 +11,17 @@ Team members
 * Keiko Oono
 * Hayato Ito
 
+Used languages
+----------
+
+- Scala
 
 Project
 ----------
 
 - This is a standard sbt (http://www.scala-sbt.org/) project.
 - See http://www.scala-sbt.org/release/docs/Getting-Started/Directories.html for the directory structure.
-  - `src/main/java/` is for Java sources.
-  - `src/main/scala/` is for Scala sources.
-
+- To run the program, you have to add a text file, `src/main/resources/icfpc2013/kirakira/token.txt`, that should contain your team's auth token.
 
 How to run (for Mac)
 ----------
@@ -27,35 +29,7 @@ How to run (for Mac)
     % brew update && brew install sbt
     % export SBT_OPTS="-XX:+CMSClassUnloadingEnabled -XX:MaxPermSize=256M"
     % sbt run
-    "Hello World!"
-
-Other sbt commands:
-
-    # Enter sbt's interactive console.
-    % sbt
-
-    > compile
-    ...
-    [success] ...
-    > run
-    "Hello World!"
-    > run-main icfpc2013.kirakira.HelloJava
-    "Hello World! Java!"
-    > test
-    ...
-    [success] ...
-    > pack
-    [info] packaging ...
-    ...
-    [success] ...
-    > exit
-
-    % ./target/pack/bin/hello
-    "Hello World!"
-
-    % ./target/pack/bin/hellojava
-    "Hello World! Java!"
-
+    ....
 
 How to develop using Eclipse (if you love Eclipse)
 ----------

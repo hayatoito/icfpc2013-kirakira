@@ -2,17 +2,24 @@ package icfpc2013.kirakira
 
 import scalaj.http.Http
 import scalaj.http.HttpOptions
+import scala.io.Source
 import scala.util.parsing.json.JSON
 import scala.util.parsing.json.JSONObject
 import scala.util.parsing.json.JSONArray
 import scala.util.parsing.json.JSONArray
 import scala.util.parsing.json.JSONObject
 
-object io {
-  case class BVIOException() extends Exception
-  val token = "0037R3ngJEM1MscklcXGMmH06VGq634dDm3rKQ4IvpsH1H"
+import icfpc2013.kirakira.basic._
 
-  // e.g. http://icfpc2013.cloudapp.net/myproblems?auth=0037R3ngJEM1MscklcXGMmH06VGq634dDm3rKQ4IvpsH1H
+object io {
+
+  val token: String = {
+    val source = Source.fromInputStream(this.getClass.getResourceAsStream("token.txt"))
+    val tokenValue = source.mkString.trim
+    source.close()
+    tokenValue
+  }
+
   def serverURL = "http://icfpc2013.cloudapp.net/"
   def requestURL(requestType: String): String = serverURL + requestType + "?auth=" + token
 
@@ -20,24 +27,24 @@ object io {
   val windowRequests = 4
   var requestTimes: List[Long] = Nil
 
-  def sleep(): Unit = {
+  def maybeSleep(): Unit = {
     val now: Long = System.currentTimeMillis
     if (requestTimes.size >= windowRequests) {
       val diff = now - requestTimes.last
       if (diff < windowMills) {
         val sleepTime = requestTimes.last + windowMills - now + 200
-        println(s"sleeping ${sleepTime}ms...")
+        println(s"Sleeping ${sleepTime}ms for the next request window slot.")
         Thread.sleep(sleepTime)
       }
     }
   }
 
   def post(url: String, data: String): Any = {
-    sleep()
-    println(s"url: ${url}, data: ${data}")
+    maybeSleep()
+    // println(s"posting url: ${url}, data: ${data}")
     val response = Http.postData(url, data).option(HttpOptions.connTimeout(10000)).option(HttpOptions.readTimeout(50000)).asString
     requestTimes = (System.currentTimeMillis :: requestTimes).take(windowRequests)
-    println(s"response: ${response}")
+    // println(s"response: ${response}")
     JSON.parseFull(response).get
   }
 
@@ -52,17 +59,11 @@ object io {
   def asBoolean(m: Map[String, Any], key: String): Boolean = m.getOrElse(key, false).asInstanceOf[Boolean]
   def asListString(m: Map[String, Any], key: String): List[String] = m(key).asInstanceOf[List[String]]
 
-  case class ProgramInfo(id: String, size: Int, operators: List[String], solved: Boolean,
-    timeLeft: Option[Double]) extends Ordered[ProgramInfo] {
-    def howEasy: Int = size + operators.size
-    override def compare(that: ProgramInfo): Int = howEasy - that.howEasy
-  }
-
-  def myproblems(): Seq[ProgramInfo] = {
+  def myproblems(): Seq[Problem] = {
     val problems = post(requestURL("myproblems"), "").asInstanceOf[List[Map[String, Any]]]
     problems map { p =>
-      ProgramInfo(asString(p, "id"), asInt(p, "size"), asListString(p, "operators"),
-        asBoolean(p, "solved"), asOptionDouble(p, "timeLeft"))
+      Problem(asString(p, "id"), asInt(p, "size"), asListString(p, "operators"),
+              asBoolean(p, "solved"), asOptionDouble(p, "timeLeft"))
     }
   }
 
@@ -77,7 +78,7 @@ object io {
     if (response("status") == "ok") EvalResponse(asListString(response, "outputs"))
     else {
       println("error: " + response("message"))
-      throw BVIOException()
+      throw BVError()
     }
   }
 
@@ -97,21 +98,13 @@ object io {
     }
   }
 
-  def convert(operators: List[String]): bv.Operators = {
-    bv.Operators(
-      bv.operators1.filter(op1 => operators.contains(op1.value)),
-      bv.operators2.filter(op2 => operators.contains(op2.value)),
-      operators.contains("if0"),
-      operators.contains("fold"))
-  }
-
-  case class TrainResponse(challenge: String, id: String, size: Int, operators: List[String])
-
-  def train(size: Int, operators: List[String] = Nil): TrainResponse = {
-    val json: String = JSONObject(Map("size" -> size, "operators" -> JSONArray(operators))).toString
+  def train(size: Option[Int], operators: List[String] = Nil): TrainProblem = {
+    val json: String = size match {
+      case Some(n) => JSONObject(Map("size" -> n, "operators" -> JSONArray(operators))).toString
+      case None => JSONObject(Map("operators" -> JSONArray(operators))).toString
+    }
     val response = post(requestURL("train"), json).asInstanceOf[Map[String, Any]]
-    TrainResponse(challenge = asString(response, "challenge"), id = asString(response, "id"), size = asInt(response, "size"),
+    TrainProblem(challenge = asString(response, "challenge"), id = asString(response, "id"), size = asInt(response, "size"),
       operators = asListString(response, "operators"))
   }
 }
-

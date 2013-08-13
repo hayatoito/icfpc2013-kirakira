@@ -2,65 +2,37 @@ package icfpc2013.kirakira
 
 import scala.collection.mutable
 import scala.util.parsing.combinator.JavaTokenParsers
-import java.math.BigInteger
+
+import icfpc2013.kirakira.basic._
 
 object bv {
 
-  implicit class RichLong(val n: Long) extends AnyVal {
-    def toHex: String = f"0x${n}%016x"
-  }
-
-  implicit class RichString(val s: String) extends AnyVal {
-    def asLong: Long = {
-      assert(s.take(2) == "0x")
-      new BigInteger(s.drop(2), 16).longValue()
-    }
-  }
-
-  case class BVError() extends RuntimeException
-
   sealed trait Op1Symbol {
-    def value: String
-  }
-  case object Not extends Op1Symbol {
-    override def value = "not"
-  }
-  case object Shl1 extends Op1Symbol {
-    override def value = "shl1"
-  }
-  case object Shr1 extends Op1Symbol {
-    override def value = "shr1"
-  }
-  case object Shr4 extends Op1Symbol {
-    override def value = "shr4"
-  }
-  case object Shr16 extends Op1Symbol {
-    override def value = "shr16"
+    def symbol: String = getClass.getSimpleName.dropRight(1).toLowerCase
   }
 
-  def operators1 = List(Not, Shl1, Shr1, Shr4, Shr16)
+  case object Not extends Op1Symbol
+  case object Shl1 extends Op1Symbol
+  case object Shr1 extends Op1Symbol
+  case object Shr4 extends Op1Symbol
+  case object Shr16 extends Op1Symbol
 
-  def toOp1(s: String) = operators1.find(_.value == s).get
+  val operators1 = List(Not, Shl1, Shr1, Shr4, Shr16)
+
+  def toOp1(s: String) = operators1.find(_.symbol == s).get
 
   sealed trait Op2Symbol {
-    def value: String
-  }
-  case object And extends Op2Symbol {
-    def value = "and"
-  }
-  case object Or extends Op2Symbol {
-    def value = "or"
-  }
-  case object Xor extends Op2Symbol {
-    def value = "xor"
-  }
-  case object Plus extends Op2Symbol {
-    def value = "plus"
+    def symbol: String = getClass.getSimpleName.dropRight(1).toLowerCase
   }
 
-  def operators2 = List(And, Or, Xor, Plus)
+  case object And extends Op2Symbol
+  case object Or extends Op2Symbol
+  case object Xor extends Op2Symbol
+  case object Plus extends Op2Symbol
 
-  def toOp2(s: String) = operators2.find(_.value == s).get
+  val  operators2 = List(And, Or, Xor, Plus)
+
+  def toOp2(s: String) = operators2.find(_.symbol == s).get
 
   sealed trait Expression
 
@@ -92,7 +64,9 @@ object bv {
     eval(f.e, env)
   }
 
-  def evalX(e: Expression, x: Long): Long = applyFunction(Lambda("x", e), x)
+  def lambda(e: Expression) = Lambda("x", e)
+
+  def evalAsLambda(e: Expression, x: Long): Long = applyFunction(lambda(e), x)
 
   object Parser extends JavaTokenParsers {
     lazy val expr: Parser[Expression] = constant | id | if0 | op1 | op2 | fold | lambda
@@ -108,15 +82,7 @@ object bv {
     def parse(in: String) = parseAll(expr, in)
   }
 
-  def parseOption(in: String) = Parser.parse(in)
-  def parse(in: String): Expression = {
-    val result = parseOption(in)
-    if (result.isEmpty) {
-      println("failed: " + result)
-      throw BVError()
-    } else
-      result.get
-  }
+  def parse(in: String): Expression = Parser.parse(in).get
 
   def eval(e: Expression, env: Environment = null): Long = e match {
     case Constant(n) => n
@@ -150,8 +116,8 @@ object bv {
 
   def stringify(e: Expression): String = e match {
     case Constant(n) => n.toString
-    case Op1(op1, e) => s"(${op1.value} ${stringify(e)})"
-    case Op2(op2, e1, e2) => s"(${op2.value} ${stringify(e1)} ${stringify(e2)})"
+    case Op1(op1, e) => s"(${op1.symbol} ${stringify(e)})"
+    case Op2(op2, e1, e2) => s"(${op2.symbol} ${stringify(e1)} ${stringify(e2)})"
     case Id(x) => x
     case If0(e0, e1, e2) => s"(if0 ${stringify(e0)} ${stringify(e1)} ${stringify(e2)})"
     case Fold(e0, e1, x, y, e) => s"(fold ${stringify(e0)} ${stringify(e1)} (lambda (${x} ${y}) ${stringify(e)}))"
@@ -171,7 +137,7 @@ object bv {
   val NOTZERO = Op1(Not, ZERO)
   val NOTONE = Op1(Not, ONE)
 
-  def redundant(e: Expression): Boolean = e match {
+  def canPruneBranch(e: Expression): Boolean = e match {
     case Op1(Shr1, Constant(_)) => true
     case Op1(Shr4, Constant(_)) => true
     case Op1(Shr16, Constant(_)) => true
@@ -213,17 +179,21 @@ object bv {
     case _ => false
   }
 
-  case class Operators(op1s: List[Op1Symbol], op2s: List[Op2Symbol], if0: Boolean, fold: Boolean)
+  case class Operators(op1s: List[Op1Symbol], op2s: List[Op2Symbol], if0: Boolean, fold: Boolean, tfold: Boolean)
 
-  val allOperators = Operators(operators1, operators2, true, true)
-  def constants = List(ZERO, ONE)
+  def toOperators(operators: List[String]) =
+    Operators(operators1.filter(op => operators.contains(op.symbol)),
+              operators2.filter(op => operators.contains(op.symbol)),
+              operators.contains("if0"),
+              operators.contains("fold"),
+              operators.contains("tfold"))
 
-  case class InputOutput(input: Long, output: Long)
+  val constants = List(ZERO, ONE)
 
-  def solveProblem(problem: io.ProgramInfo): Boolean = {
-    println("problem: " + problem)
+  def solveProblem(problem: Problem): Boolean = {
+    println("Problem: " + problem)
     val cache = mutable.Map.empty[(Int, Set[String]), Seq[Expression]]
-    val operators = io.convert(problem.operators)
+    val operators = toOperators(problem.operators)
 
     def generateExpressions(size: Int, usedIds: Set[String]): Seq[Expression] = {
       cache.getOrElseUpdate((size, usedIds),
@@ -251,7 +221,7 @@ object bv {
               } yield If0(e1, e2, e3)
             } else Nil) ++
             (if (operators.fold) generateFold(size, usedIds) else Nil)
-        }).filterNot(redundant))
+        }).filterNot(canPruneBranch))
     }
 
     def generateFold(size: Int, usedIds: Set[String]): Seq[Expression] = {
@@ -265,66 +235,124 @@ object bv {
       } yield Fold(e1, e2, "x", "y", e3))
     }
 
+    case class InputOutput(input: Long, output: Long) {
+      def satisfiedWith(e: Expression): Boolean = evalAsLambda(e, input) == output
+    }
+
+    def iterativeSizeLimit =
+      (if (operators.fold) 11
+       else if (operators.tfold) 13
+       else 11).min(problem.size)
+
     val inputs = (-128L until 128L)
-    val outputs = io.eval(Some(problem.id), None, inputs.map(n => n.toHex).toList).
-      outputs.map(x => x.asLong)
-    val inputOutputs = inputs.zip(outputs) map (x => InputOutput(x._1, x._2))
+    val outputs = io.eval(Some(problem.id), None, inputs.map(n => toHex(n)).toList).outputs.map(asLong)
+    val examples = inputs.zip(outputs) map (x => InputOutput(x._1, x._2))
 
-    def gen(f: (Int, Set[String]) => Seq[Expression]): Seq[Expression] =
-      (1 to problem.size - 1).map { size => f(size, Set("x")) }.
-        foldLeft(Seq.empty[Expression])((x, xs) => x ++ xs)
+    def generateFunction: (Int, Set[String]) => Seq[Expression] = if (operators.tfold) generateFold else generateExpressions
 
-    val expressions =
-      for {
-        e <- gen(if (problem.operators.contains("tfold")) generateFold else generateExpressions)
-        if inputOutputs.forall { case InputOutput(input, output) => evalX(e, input) == output }
-      } yield e
-    expressions.take(20) foreach { e => println(stringify(Lambda("x", e))) }
-    println(" candidates size: " + expressions.size)
+    def filterPrograms(expressions: Seq[Expression], examples: Seq[InputOutput]): Seq[Expression] =
+      expressions.filter(e => examples.forall { _.satisfiedWith(e) }).toList
 
-    def tryGuess(ps: List[Expression]): Boolean = ps match {
+    def tryGuess(expressions: List[Expression], examples: List[InputOutput], size: Int): Boolean = expressions match {
       case e :: es => {
-        val guessResponse = io.guess(problem.id, stringify(Lambda("x", e)))
+        println(s"  Found candidates with size=${size + 1}. # of candidates: ${expressions.size}.")
+        expressions.take(10) foreach { e => println(s"    ${stringify(lambda(e))}") }
+        if (expressions.size > 10) println("    ...")
+        val guessResponse = io.guess(problem.id, stringify(lambda(e)))
         println(guessResponse)
-        if (guessResponse.status == "win") {
-          println("win\n")
-          true
-        } else if (guessResponse.status == "mismatch") {
-          println("filter: before " + es.size)
-          val filtered = es.filter(e => evalX(e, guessResponse.input.asLong) == guessResponse.answer.asLong)
-          println("filter: after " + filtered.size)
-          tryGuess(filtered)
+        if (guessResponse.status == "win") true
+        else if (guessResponse.status == "mismatch") {
+          val counterExample = InputOutput(asLong(guessResponse.input), asLong(guessResponse.answer))
+          val filtered = filterPrograms(es, List(counterExample))
+          println(s"Filtered:  ${es.size + 1} -> ${filtered.size}")
+          tryGuess(filtered.toList, counterExample :: examples, size)
         } else false
       }
-      case Nil => {
-        println(" No more candidate")
-        false
-      }
+      case Nil =>
+        if (size + 2 > iterativeSizeLimit) false
+        else {
+          println(s"Trying to find candidates with size=${size + 2}...")
+          tryGuess(filterPrograms(generateFunction(size + 1, Set("x")), examples).toList, examples, size + 1)
+        }
     }
-    tryGuess(expressions.toList)
+    tryGuess(Nil, examples.toList, 0)
   }
 
-  def availableProblems: Seq[io.ProgramInfo] =
+  def solveTrainProblem(problem: TrainProblem): Boolean = {
+    solveProblem(Problem(id = problem.id, size = problem.size, operators = problem.operators, solved = false, timeLeft = None))
+  }
+
+  def training(): Unit = {
+    import collection.immutable.SortedMap
+
+    case class WinLose(win: Int = 0, lose: Int = 0)
+
+    case class Stats(name: String) {
+      val stats = mutable.Map.empty[Int, WinLose]
+      def sortedStats = SortedMap(stats.toSeq: _*)
+      def winLose(problemSize: Int) = stats.getOrElseUpdate(problemSize, WinLose())
+      def win(problemSize: Int) = winLose(problemSize).win
+      def lose(problemSize: Int) = winLose(problemSize).lose
+
+      def recordWin(problemSize: Int) = {
+        println(s"Win for (size=${problemSize}, type=${name})")
+        val wl = winLose(problemSize)
+        stats(problemSize) = wl.copy(win=wl.win + 1)
+      }
+
+      def recordLose(problemSize: Int) = {
+        println(s"Lose for (size=${problemSize}, type=${name})")
+        val wl = winLose(problemSize)
+        stats(problemSize) = wl.copy(lose=wl.lose + 1)
+      }
+
+      def printStats(): Unit = {
+        println(s"Stats (${name}):")
+        for ((size, WinLose(win, lose)) <- sortedStats) {
+          println(f"   (size:${size}%2d) Win:${win}%3d, Lose:${lose}%3d, WinRatio: ${1.0 * win / (win + lose)}%2.2f")
+        }
+      }
+    }
+
+    val statsList = List(Stats("simple"), Stats("fold"), Stats("tfold"))
+
+    val random = new scala.util.Random
+
+    def solve(): Unit = {
+      println("-" * 64)
+      statsList foreach { s => s.printStats() }
+      println("-" * 64)
+      val problemType = random.nextInt(3)
+      val operators = List(Nil, List("fold"), List("tfold"))(problemType)
+      val stats = statsList(problemType)
+      val trainProblem = io.train(size = None, operators = operators)
+      println(s"Training problem: (size=${trainProblem.size}, type=${stats.name}, challenge=${trainProblem.challenge})")
+      if (solveTrainProblem(trainProblem)) stats.recordWin(trainProblem.size)
+      else stats.recordLose(trainProblem.size)
+      solve()
+    }
+    solve()
+  }
+
+  def availableProblems: Seq[Problem] =
     io.myproblems.filterNot(p => p.solved).filterNot(p => p.timeLeft.getOrElse(1.0) == 0.0).sorted
 
   def tachikoma(): Unit = {
-    val problems = availableProblems
-    println("problems size: " + problems.size)
-    problems foreach solveProblem
-  }
-
-  def solveTrain(size: Int): Boolean = {
-    val train = io.train(size = size)
-    solveProblem(io.ProgramInfo(id = train.id, size = train.size, operators = train.operators,
-      solved = false, timeLeft = None))
+    def solve(problems: List[Problem], win: Int, lose: Int): Unit = {
+      println(s"Remaining problem = ${problems.size}, win: ${win}, lose: ${lose}")
+      problems match {
+        case x :: xs => if (solveProblem(x)) solve(xs, win + 1, lose) else solve(xs, win, lose + 1)
+        case Nil => println("Finished")
+      }
+    }
+    solve(availableProblems.toList, 0, 0)
   }
 }
 
 object BVMain extends App {
-  import bv._
-  (0 to 100) forall { i =>
-    println("problem: " + i)
-    solveTrain(size = 10)
-  }
-  // tachikoma()
+  bv.training()
+}
+
+object BVContest extends App {
+  bv.tachikoma()
 }

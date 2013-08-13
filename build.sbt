@@ -24,3 +24,5 @@ packSettings
 
 packMain := Map("hello" -> "icfpc2013.kirakira.BVMain",
                 "hellojava" -> "icfpc2013.kirakira.HelloJava")
+
+EclipseKeys.createSrc := EclipseCreateSrc.Default + EclipseCreateSrc.Resource

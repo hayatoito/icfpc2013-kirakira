@@ -7,3 +7,5 @@ target/
 .project
 .classpath
 .settings/
+
+src/main/resources/icfpc2013/kirakira/token.txt
