@@ -10,7 +10,7 @@ Team members
 * Anna Ogawa
 * Keiko Oono
 * Hayato Ito
-* Mai Nishimura (As s chef)
+* Mai Nishimura (As a chef)
 
 Used languages
 ----------
