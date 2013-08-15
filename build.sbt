@@ -12,8 +12,11 @@ scalacOptions += "-deprecation"
 
 resolvers += "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/"
 
+resolvers += "spray" at "http://repo.spray.io/"
+
 libraryDependencies ++= Seq(
   "org.scalaj" %% "scalaj-http" % "0.3.9" exclude("junit", "junit"),
+  "io.spray" %%  "spray-json" % "1.2.5",
   "com.typesafe" %% "scalalogging-slf4j" % "1.0.1",
   "org.scalatest" %% "scalatest" % "2.0.RC1-SNAP2" % "test"
 )

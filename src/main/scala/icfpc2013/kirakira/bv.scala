@@ -241,11 +241,15 @@ object bv {
 
     def iterativeSizeLimit =
       (if (operators.fold) 11
-       else if (operators.tfold) 13
+       else if (operators.tfold) 12
        else 11).min(problem.size)
 
     val inputs = (-128L until 128L)
-    val outputs = io.eval(Some(problem.id), None, inputs.map(n => toHex(n)).toList).outputs.map(asLong)
+    val outputs: Seq[Long] = io.eval(EvalRequest(Some(problem.id), None, inputs.map(n => toHex(n)).toList)) match {
+      case Response(_, Some(EvalResponse(_, Some(outputs), _)), _) => outputs.map(x => asLong(x))
+      case _ => throw BVError()
+    }
+
     val examples = inputs.zip(outputs) map (x => InputOutput(x._1, x._2))
 
     def generateFunction: (Int, Set[String]) => Seq[Expression] = if (operators.tfold) generateFold else generateExpressions
@@ -258,15 +262,18 @@ object bv {
         println(s"  Found candidates with size=${size + 1}. # of candidates: ${expressions.size}.")
         expressions.take(10) foreach { e => println(s"    ${stringify(lambda(e))}") }
         if (expressions.size > 10) println("    ...")
-        val guessResponse = io.guess(problem.id, stringify(lambda(e)))
+        val guessResponse = io.guess(Guess(problem.id, stringify(lambda(e))))
         println(guessResponse)
-        if (guessResponse.status == "win") true
-        else if (guessResponse.status == "mismatch") {
-          val counterExample = InputOutput(asLong(guessResponse.input), asLong(guessResponse.answer))
-          val filtered = filterPrograms(es, List(counterExample))
-          println(s"Filtered:  ${es.size + 1} -> ${filtered.size}")
-          tryGuess(filtered.toList, counterExample :: examples, size)
-        } else false
+        guessResponse match {
+          case Response(_, Some(GuessResponse("win", None, _, _)), _) => true
+          case Response(_, Some(GuessResponse("mismatch", Some(List(input, answer, actual)), _, _)), _) => {
+            val counterExample = InputOutput(asLong(input), asLong(answer))
+            val filtered = filterPrograms(es, List(counterExample))
+            println(s"Filtered:  ${es.size + 1} -> ${filtered.size}")
+            tryGuess(filtered.toList, counterExample :: examples, size)
+          }
+          case Response(_, None, _) => false
+        }
       }
       case Nil =>
         if (size + 2 > iterativeSizeLimit) false
@@ -276,10 +283,6 @@ object bv {
         }
     }
     tryGuess(Nil, examples.toList, 0)
-  }
-
-  def solveTrainProblem(problem: TrainProblem): Boolean = {
-    solveProblem(Problem(id = problem.id, size = problem.size, operators = problem.operators, solved = false, timeLeft = None))
   }
 
   def training(): Unit = {
@@ -325,21 +328,25 @@ object bv {
       val problemType = random.nextInt(3)
       val operators = List(Nil, List("fold"), List("tfold"))(problemType)
       val stats = statsList(problemType)
-      val trainProblem = io.train(size = None, operators = operators)
-      println(s"Training problem: (size=${trainProblem.size}, type=${stats.name}, challenge=${trainProblem.challenge})")
-      if (solveTrainProblem(trainProblem)) stats.recordWin(trainProblem.size)
-      else stats.recordLose(trainProblem.size)
-      solve()
+      io.train(TrainRequest(size = None, operators = Some(operators))) match {
+        case Response(_, Some(TrainingProblem(challenge, id, size, operators)), _) => {
+          println(s"Training problem: (type=${stats.name}, size=${size}, challenge=${challenge})")
+          if (solveProblem(Problem(id=id, size=size, operators=operators, solved=None, timeLeft=None))) stats.recordWin(size)
+          else stats.recordLose(size)
+          solve()
+        }
+        case _ => throw BVError()
+      }
     }
     solve()
   }
 
   def availableProblems: Seq[Problem] =
-    io.myproblems.filterNot(p => p.solved).filterNot(p => p.timeLeft.getOrElse(1.0) == 0.0).sorted
+    io.myproblems.filter(p => p.solved.isEmpty).filterNot(p => p.timeLeft.getOrElse(1.0) == 0.0).sorted
 
   def tachikoma(): Unit = {
     def solve(problems: List[Problem], win: Int, lose: Int): Unit = {
-      println(s"Remaining problem = ${problems.size}, win: ${win}, lose: ${lose}")
+      println(s"Remaining problems: ${problems.size}, win: ${win}, lose: ${lose}")
       problems match {
         case x :: xs => if (solveProblem(x)) solve(xs, win + 1, lose) else solve(xs, win, lose + 1)
         case Nil => println("Finished")

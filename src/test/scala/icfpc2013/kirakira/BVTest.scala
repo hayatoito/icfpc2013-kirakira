@@ -1,6 +1,8 @@
 package icfpc2013.kirakira
 
 import org.scalatest.FunSuite
+
+import icfpc2013.kirakira.basic._
 import icfpc2013.kirakira.bv._
 
 class BVTest extends FunSuite {
@@ -104,11 +106,11 @@ class BVTest extends FunSuite {
   }
 
   test("parse hex") {
-    assert("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF".asLong == -1L)
+    assert(asLong("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF") == -1L)
   }
 
   test("redundant") {
-    assert(redundant(Op1(Shr1, ZERO)) === true)
+    assert(canPruneBranch(Op1(Shr1, ZERO)) === true)
   }
 
 }
