@@ -1,7 +1,7 @@
-ICFP Programming Contest 2013 - Team "kirakira annatan"
+ICFP Programming Contest 2013 - Team "きらきら☆あんなたん"
 =====================================
 
-The "kirakira annatan" team's entry for https://research.microsoft.com/en-us/events/icfpcontest2013/
+The team **きらきら☆あんなたん**'s entry for https://research.microsoft.com/en-us/events/icfpcontest2013/
 
 
 Team members
@@ -10,6 +10,7 @@ Team members
 * Anna Ogawa
 * Keiko Oono
 * Hayato Ito
+* Mai Nishimura (As s chef)
 
 Used languages
 ----------
