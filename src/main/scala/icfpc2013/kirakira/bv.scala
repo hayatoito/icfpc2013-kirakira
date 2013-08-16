@@ -3,9 +3,18 @@ package icfpc2013.kirakira
 import scala.collection.mutable
 import scala.util.parsing.combinator.JavaTokenParsers
 
-import icfpc2013.kirakira.basic._
+import icfpc2013.kirakira.io.protocol._
 
 object bv {
+
+  case class BVError() extends RuntimeException
+
+  def toHex(n: Long): String = f"0x${n}%016x"
+
+  def asLong(s: String): Long = {
+    assert(s.take(2) == "0x")
+    new java.math.BigInteger(s.drop(2), 16).longValue()
+  }
 
   sealed trait Op1Symbol {
     def symbol: String = getClass.getSimpleName.dropRight(1).toLowerCase
@@ -246,8 +255,8 @@ object bv {
 
     val inputs = (-128L until 128L)
     val outputs: Seq[Long] = io.eval(EvalRequest(Some(problem.id), None, inputs.map(n => toHex(n)).toList)) match {
-      case Response(_, Some(EvalResponse(_, Some(outputs), _)), _) => outputs.map(x => asLong(x))
-      case _ => throw BVError()
+      case Some(EvalResponse(_, Some(outputs), _)) => outputs.map(x => asLong(x))
+      case _ => return false
     }
 
     val examples = inputs.zip(outputs) map (x => InputOutput(x._1, x._2))
@@ -265,14 +274,14 @@ object bv {
         val guessResponse = io.guess(Guess(problem.id, stringify(lambda(e))))
         println(guessResponse)
         guessResponse match {
-          case Response(_, Some(GuessResponse("win", None, _, _)), _) => true
-          case Response(_, Some(GuessResponse("mismatch", Some(List(input, answer, actual)), _, _)), _) => {
+          case Some(GuessResponse("win", None, _, _)) => true
+          case Some(GuessResponse("mismatch", Some(List(input, answer, actual)), _, _)) => {
             val counterExample = InputOutput(asLong(input), asLong(answer))
             val filtered = filterPrograms(es, List(counterExample))
             println(s"Filtered:  ${es.size + 1} -> ${filtered.size}")
             tryGuess(filtered.toList, counterExample :: examples, size)
           }
-          case Response(_, None, _) => false
+          case _ => false
         }
       }
       case Nil =>
@@ -329,7 +338,7 @@ object bv {
       val operators = List(Nil, List("fold"), List("tfold"))(problemType)
       val stats = statsList(problemType)
       io.train(TrainRequest(size = None, operators = Some(operators))) match {
-        case Response(_, Some(TrainingProblem(challenge, id, size, operators)), _) => {
+        case Some(TrainingProblem(challenge, id, size, operators)) => {
           println(s"Training problem: (type=${stats.name}, size=${size}, challenge=${challenge})")
           if (solveProblem(Problem(id=id, size=size, operators=operators, solved=None, timeLeft=None))) stats.recordWin(size)
           else stats.recordLose(size)
@@ -341,8 +350,10 @@ object bv {
     solve()
   }
 
-  def availableProblems: Seq[Problem] =
-    io.myproblems.filter(p => p.solved.isEmpty).filterNot(p => p.timeLeft.getOrElse(1.0) == 0.0).sorted
+  def availableProblems: Seq[Problem] = io.myproblems match {
+    case Some(problems) => problems.filter(p => p.solved.isEmpty).filterNot(p => p.timeLeft.getOrElse(1.0) == 0.0).sortBy(x => x.size + x.operators.size)
+    case None => Nil
+  }
 
   def tachikoma(): Unit = {
     def solve(problems: List[Problem], win: Int, lose: Int): Unit = {
