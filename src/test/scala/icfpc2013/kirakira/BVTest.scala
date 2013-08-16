@@ -2,7 +2,6 @@ package icfpc2013.kirakira
 
 import org.scalatest.FunSuite
 
-import icfpc2013.kirakira.basic._
 import icfpc2013.kirakira.bv._
 
 class BVTest extends FunSuite {
