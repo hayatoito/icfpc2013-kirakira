@@ -103,13 +103,4 @@ class BVTest extends FunSuite {
     val source = "(lambda (x) (fold x 0 (lambda (y z) (plus y z))))"
     assert(stringify(parse(source)) === source)
   }
-
-  test("parse hex") {
-    assert(asLong("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF") == -1L)
-  }
-
-  test("redundant") {
-    assert(canPruneBranch(Op1(Shr1, ZERO)) === true)
-  }
-
 }

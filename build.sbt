@@ -21,11 +21,11 @@ libraryDependencies ++= Seq(
   "org.scalatest" %% "scalatest" % "2.0.RC1-SNAP2" % "test"
 )
 
-mainClass in (Compile, run) := Some("icfpc2013.kirakira.BVMain")
+mainClass in (Compile, run) := Some("icfpc2013.kirakira.TrainingSolver")
 
 packSettings
 
-packMain := Map("hello" -> "icfpc2013.kirakira.BVMain",
-                "hellojava" -> "icfpc2013.kirakira.HelloJava")
+packMain := Map("training" -> "icfpc2013.kirakira.TrainingSolver",
+                "contest" -> "icfpc2013.kirakira.ContestSolver")
 
 EclipseKeys.createSrc := EclipseCreateSrc.Default + EclipseCreateSrc.Resource

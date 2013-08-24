@@ -1,10 +1,8 @@
 package icfpc2013.kirakira
 
 import scala.io.Source
-
 import scalaj.http.Http
 import scalaj.http.HttpOptions
-
 import spray.json._
 import spray.json.DefaultJsonProtocol._
 
@@ -39,18 +37,18 @@ object io {
 
   def post[T](url: String, data: String)(implicit m: JsonFormat[T]): Option[T] = {
     val httpPost = Http.postData(url, data).option(HttpOptions.connTimeout(10000)).option(HttpOptions.readTimeout(50000))
-    def myConnectionProcessor(conn: java.net.HttpURLConnection): (Int, String, Option[String]) = conn.getResponseCode match {
-      case SUCCESS => (SUCCESS, conn.getResponseMessage, Some(Http.tryParse(conn.getInputStream, Http.readString)))
-      case x => (x, conn.getResponseMessage, None)
+    def myConnectionProcessor(conn: java.net.HttpURLConnection): (Int, String) = conn.getResponseCode match {
+      case SUCCESS => (SUCCESS, Http.tryParse(conn.getInputStream, Http.readString))
+      case x => (x, conn.getResponseMessage)
     }
     httpPost.process(myConnectionProcessor) match {
-      case (SUCCESS, _, Some(body)) => Some(body.asJson.convertTo[T])
-      case (TOO_MANY_REQUESTS, responseMessage, _) => {
+      case (SUCCESS, body) => Some(body.asJson.convertTo[T])
+      case (TOO_MANY_REQUESTS, responseMessage) => {
         println(s"${TOO_MANY_REQUESTS} ${responseMessage}. Try again...")
         Thread.sleep(1000)
         post[T](url, data)
       }
-      case (responseCode, responseMessage, _) => {
+      case (responseCode, responseMessage) => {
         println(s"${responseCode} ${responseMessage}.")
         None
       }
